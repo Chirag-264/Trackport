@@ -1,20 +1,22 @@
+import { Timestamp } from 'mongodb';
 import mongoose from 'mongoose'
 
 const userSchema = new mongoose.Schema ({
     name: {
         type: String,
-        min: 3,
-        max: 50,
+        minlength: 3,
+        maxlength: 50,
         trim: true,
         required: [true, 'Name is required']
     },
     userName: {
         type: String,
-        min: 3,
-        max: 50,
+        minlength: 3,
+        maxlength: 50,
         trim: true,
         unique: true,
-        required: [true, 'Username is required']
+        required: [true, 'Username is required'],
+        lowercase: true
     },
     email: {
         type: String,
@@ -25,25 +27,24 @@ const userSchema = new mongoose.Schema ({
         match: [/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/, 'Please fill a valid email address']
     },
     password: {
-        //to be implemented
+        type: String,
+        required: [true, 'password is required.'],
+        Select: false
     },
     college: {
-        type: String
-        //rest to be implemented
+        type: String,
+        trim: true
     },
     branch: {
-        type: String
-        //rest to be implemented
+        type: String,
+        trim: true
     },
     graduationYear: {
         type: Number,
-        //to be implemented
+        min: 2020,
+        max: 2035
     },
-    createdAt: {
-        type: Date
-        //rest to be implemented
-    }
-})
+}, {timestamps: true})
 
 const User = new mongoose.model('User', userSchema);
 export default User;

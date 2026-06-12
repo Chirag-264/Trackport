@@ -5,9 +5,6 @@ import jwt from 'jsonwebtoken';
 import 'dotenv/config'
 
 async function registerUser(req, res, next) {
-    const session = await mongoose.startSession();
-    session.startTransaction();
-
     try {
         const {name, userName, email, password, college, branch, graduationYear} = req.body;
 
@@ -20,27 +17,22 @@ async function registerUser(req, res, next) {
         const salt = await bcrypt.genSalt(10);
         const hashedPassword = await bcrypt.hash(password, salt);
 
-        const newUsers = await User.create([{name, userName, email, password: hashedPassword, college, branch, graduationYear}], {session});
+        const newUser = await User.create({name, userName, email, password: hashedPassword, college, branch, graduationYear});
 
         const token = jwt.sign({userId: newUsers[0]._id}, process.env.JWT_SECRET);
-
-        session.commitTransaction();
-        session.endSession();
 
         res.status(201).json({
             success: true,
             message: 'User Created Successfully.',
             data: {
                 token,
-                user: newUsers[0]
+                user: newUser
             }
         });
 
     }
 
     catch(err) {
-        session.abortTransaction();
-        session.endSession();
         next(err);
     }
     
@@ -51,7 +43,7 @@ async function loginUser(req, res, next) {
     try {
         const {email, password} = req.body;
 
-        const existingUser = await User.findOne({email});
+        const existingUser = await User.findOne({email}).select('+password');
 
         if(!existingUser) {
             const error = new Error('No account with this email exists. Please register before logging in.');
