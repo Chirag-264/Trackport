@@ -6,7 +6,6 @@ export async function authUser(req, res, next) {
 
     try {
         const authHeader = req.headers.authorization || "";
-        console.log(req.headers.authorization);
         if(!authHeader) {
             const error = new Error('Unauthorized');
             error.statusCode = 401;

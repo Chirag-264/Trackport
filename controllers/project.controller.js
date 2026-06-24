@@ -139,6 +139,14 @@ async function updateProject(req, res, next) {
             throw error;
         }
 
+        const updates = Object.keys(req.body);
+
+        if (updates.length === 0) {
+            const error = new Error("No update fields provided");
+            error.statusCode = 400;
+            throw error;
+        }
+
         if (title !== undefined) {
             const existingProject = await Project.findOne({
                 title,
