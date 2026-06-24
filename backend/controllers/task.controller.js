@@ -24,7 +24,19 @@ async function createTask(req, res, next) {
 async function getTasks(req, res, next) {
     try {
         const userId = req.user._id;
-        const tasks = await Task.find({userId});
+        const filter = {userId};
+        if(req.query.completed !== undefined) {
+            filter.completed = req.query.completed === "true";
+        }
+        const page = Number(req.query.page) || 1;
+        const limit = Number(req.query.limit) || 10;
+        if(page < 1 || limit < 1) {
+            const error = new Error("Invalid pagination values");
+            error.statusCode = 400;
+            throw error;
+        }
+        const skip = (page - 1) * limit;
+        const tasks = await Task.find(filter).skip(skip).limit(limit);
 
         res.status(200).json({
             success: true,
