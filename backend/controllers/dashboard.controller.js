@@ -1,6 +1,7 @@
 import mongoose from "mongoose";
 import Project from "../models/project.model.js";
 import Task from "../models/tasks.model.js";
+import User from "../models/user.model.js";
 
 async function dashboard(req, res, next) {
     try {
@@ -10,13 +11,15 @@ async function dashboard(req, res, next) {
         const completedProjects = await Project.countDocuments({userId, status: "Completed"});
         const completedTasks = await Task.countDocuments({userId, completed: true});
         const pendingTasks = await Task.countDocuments({userId, completed: false});
+        const recentProjects = await Project.find({userId}).sort({createdAt: -1}).limit(3);
 
         res.status(200).json({
             totalProjects,
             totalTasks,
             completedProjects,
             completedTasks,
-            pendingTasks
+            pendingTasks,
+            recentProjects
         })
     }
 

@@ -19,7 +19,7 @@ async function registerUser(req, res, next) {
 
         const newUser = await User.create({name, userName, email, password: hashedPassword, college, branch, graduationYear});
 
-        const token = jwt.sign({userId: newUsers[0]._id}, process.env.JWT_SECRET);
+        const token = jwt.sign({userId: newUser._id}, process.env.JWT_SECRET);
 
         res.status(201).json({
             success: true,

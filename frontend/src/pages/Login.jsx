@@ -24,7 +24,9 @@ export default function Login() {
       }
       const response = await loginUser(formData);
       console.log(response.data);
-      navigate('/');
+      localStorage.setItem("token", response.data.data.token);
+      localStorage.setItem("user", JSON.stringify(response.data.data.User));
+      navigate('/dashboard');
     }
 
     catch(err) {
