@@ -1,26 +1,21 @@
-import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import React from 'react'
+import ActionTile from './ActionTile'
+import { Plus, ListChecks, BarChart3 } from 'lucide-react'
 
-export default function QuickActions() {
+const QuickActions = () => {
   return (
-    <Card className="p-6">
-
-      <h2 className="font-semibold text-lg mb-4">
-        Quick Actions
-      </h2>
-
-      <div className="flex flex-wrap gap-3">
-
-        <Button>
-          New Project
-        </Button>
-
-        <Button variant="outline">
-          New Task
-        </Button>
-
-      </div>
-
-    </Card>
-  );
+    <div className="card-surface p-6">
+              <div>
+                <h3 className="font-display text-base font-semibold">Quick Actions</h3>
+                <p className="mt-0.5 text-xs text-muted-foreground">Shortcuts to get things done</p>
+              </div>
+              <div className="mt-4 grid grid-cols-1 gap-3">
+                <ActionTile icon={Plus} title="New Project" sub="Create a new project" primary />
+                <ActionTile icon={ListChecks} title="New Task" sub="Add a new task" />
+                <ActionTile icon={BarChart3} title="AI Analytics" sub="Get insights" />
+              </div>
+    </div>
+  )
 }
+
+export default QuickActions

@@ -1,58 +1,32 @@
-import { Card } from "@/components/ui/card";
+import React from 'react'
+import { Button } from '../ui/button'
+import { ArrowUpRight, Badge } from 'lucide-react'
 
-export default function RecentProjects({userData}) {
-  console.log(userData.recentProjects);
-  const projects = userData?.recentProjects || [];
+const RecentProjects = ({projects}) => {
   return (
-      <Card className="rounded-3xl p-6 bg-white/90">
-
-        <div className="flex justify-between items-center mb-5">
-
-          <h2 className="font-semibold">
-            Recent Projects
-          </h2>
-
-          <span className="text-sm text-violet-600">
-            View all
-          </span>
-
-        </div>
-
-        <div className="space-y-4">
-
-          {projects.map(project => (
-
-            <div
-              key={project._id}
-              className="rounded-xl border p-4 hover:bg-slate-50"
-            >
-
-              <div className="flex justify-between">
-
-                <h3 className="font-medium">
-                  {project.title}
-                </h3>
-
-                <span className="text-xs text-slate-500">
-                  Active
-                </span>
-
+    <div className="card-surface p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="font-display text-base font-semibold">Recent Projects</h3>
+                  <p className="mt-0.5 text-xs text-muted-foreground">Your latest projects</p>
+                </div>
+                <Button variant="ghost" size="sm" className="h-8 gap-1 text-xs text-muted-foreground">
+                  View all <ArrowUpRight className="h-3.5 w-3.5" />
+                </Button>
               </div>
-
-              <div className="mt-3 h-2 bg-slate-100 rounded-full">
-
-                <div
-                  className="h-2 bg-violet-500 rounded-full w-3/5"
-                />
-
-              </div>
-
+              <ul className="mt-4 space-y-3">
+                {projects.map((p) => (
+                  <li key={p.name} className="flex items-center justify-between gap-3 rounded-xl border border-border bg-background/60 p-3">
+                    <div className="min-w-0">
+                      <div className="truncate text-sm font-medium">{p.name}</div>
+                      <div className="text-[11px] text-muted-foreground">Updated {p.updated}</div>
+                    </div>
+                    <Badge variant="secondary" className={`rounded-full ${p.tone} hover:${p.tone}`}>{p.status}</Badge>
+                  </li>
+                ))}
+              </ul>
             </div>
-
-          ))}
-
-        </div>
-
-      </Card>
-      );
+  )
 }
+
+export default RecentProjects
