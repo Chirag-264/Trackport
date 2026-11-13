@@ -1,18 +1,13 @@
 import api from "./api";
 
-
-async function getUserData() {
-    const token = localStorage.getItem("token");
-
-    const response = await api.get(
-        "/dashboard",
-        {
-            headers: {
-                Authorization: `Bearer ${token}`
-            }
-        }
-    );
-    return response;
+export async function getDashboardData() {
+    const response = await api.get("/dashboard");
+    return response.data;
 }
 
-export default getUserData;
+export async function getGitHubStats(githubUrl) {
+    const response = await api.get("/integrations/github", { params: { url: githubUrl } });
+    return response.data;
+}
+
+export default getDashboardData;

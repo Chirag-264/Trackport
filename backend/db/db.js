@@ -1,19 +1,26 @@
 import mongoose from "mongoose";
-import 'dotenv/config';
+import dotenv from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
-if(!process.env.DB_URI) {
-    throw new Error('Please define the database URI in env.');
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+dotenv.config({ path: path.join(__dirname, '../.env') });
+dotenv.config();
+
+if (!process.env.DB_URI) {
+    throw new Error('Please define the DB_URI in backend/.env');
 }
 
 async function connectDB() {
-    try{ 
-        await mongoose.connect(process.env.DB_URI);
-        console.log('Database connected successfully')
+    try {
+        const conn = await mongoose.connect(process.env.DB_URI);
+        console.log(`MongoDB Connected: ${conn.connection.host}`);
+        return conn;
+    } catch (err) {
+        console.error('Failed to connect to Database:', err.message);
+        throw err;
     }
-    catch(err) {
-        console.log(err + ': Failed to connect to Database');
-    }
-    
 }
 
 export default connectDB;

@@ -1,106 +1,671 @@
-import { act, useEffect, useState } from "react";
-import DashboardHeader from "@/components/Dashboard/DashboardHeader.jsx";
-import StatsGrid from "@/components/Dashboard/StatsGrid.jsx";
-import TaskCompletion from "@/components/Dashboard/TaskCompletion.jsx";
-import OngoingTasks from "@/components/Dashboard/OngoingTasks.jsx";
-import DsaTracker from "@/components/Dashboard/DsaTracker.jsx";
-import GithubOverview from "@/components/Dashboard/GithubOverview.jsx";
-import RecentProjects from "@/components/Dashboard/RecentProjects.jsx";
-import QuickActions from "@/components/Dashboard/QuickActions.jsx";
+import React, { useEffect, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import {
-  FolderKanban,
+  Folder,
   ListChecks,
   CheckCircle2,
   Clock,
+  ArrowUpRight,
+  ChevronRight,
+  Flame,
+  GitBranch,
   GitCommit,
   GitPullRequest,
-  GitBranch,
+  Plus,
+  Code2,
+  BarChart3,
+  Sparkles,
+  AlertCircle,
+  Loader2,
+  Calendar
 } from "lucide-react";
-
-const stats = [
-  { label: "Total Projects", value: "8", sub: "Active projects", icon: FolderKanban, tint: "bg-[oklch(0.96_0.03_278)] text-[oklch(0.45_0.2_278)]" },
-  { label: "Total Tasks", value: "34", sub: "All tasks", icon: ListChecks, tint: "bg-[oklch(0.95_0.03_235)] text-[oklch(0.45_0.15_235)]" },
-  { label: "Completed Tasks", value: "21", sub: "61.8% of all tasks", icon: CheckCircle2, tint: "bg-[oklch(0.94_0.05_155)] text-[oklch(0.4_0.14_155)]" },
-  { label: "Pending Tasks", value: "13", sub: "Needs attention", icon: Clock, tint: "bg-[oklch(0.96_0.05_65)] text-[oklch(0.45_0.14_65)]" },
-  
-];
-
-const ongoingTasks = [
-  { name: "TrackPort v2.0", due: "May 25", days: 2, priority: "high" },
-  { name: "Authentication System", due: "May 28", days: 5, priority: "high" },
-  { name: "Database Integration", due: "May 30", days: 7, priority: "med" },
-  { name: "Landing Page Design", due: "Jun 2", days: 10, priority: "med" },
-  { name: "API Documentation", due: "Jun 5", days: 13, priority: "low" },
-];
-
-const projects = [
-  { name: "TrackPort", updated: "2 hours ago", status: "In Progress", tone: "bg-primary-soft text-[oklch(0.4_0.18_278)]" },
-  { name: "Portfolio Website", updated: "Yesterday", status: "Completed", tone: "bg-[oklch(0.94_0.05_155)] text-[oklch(0.38_0.14_155)]" },
-  { name: "Blog Platform", updated: "3 days ago", status: "Planning", tone: "bg-[oklch(0.96_0.05_65)] text-[oklch(0.42_0.14_65)]" },
-];
-
-const activity = [
-  { icon: GitCommit, text: "Pushed 3 commits to", target: "trackport/web", time: "12m ago" },
-  { icon: GitPullRequest, text: "Opened PR #23 in", target: "trackport/api", time: "1h ago" },
-  { icon: GitBranch, text: "Created branch", target: "feat/auth-flow", time: "3h ago" },
-];
-
-const week = ["M", "T", "W", "T", "F", "S", "S"];
-const streakData = [1, 1, 1, 1, 1, 0, 0, 1, 1, 1, 1, 1, 1, 0];
-
+import { getDashboardData } from "@/services/dashboard.service";
+import { createProject } from "@/services/project.service";
+import { createTask } from "@/services/task.service";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from "@/components/ui/select";
 
 export default function Dashboard() {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
-  // Dark mode
-  const [dark, setDark] = useState(false);
+  // Modals from Quick Actions
+  const [isNewProjectOpen, setIsNewProjectOpen] = useState(false);
+  const [projectForm, setProjectForm] = useState({ title: "", description: "", status: "In Progress" });
+  const [submittingProject, setSubmittingProject] = useState(false);
+
+  const [isNewTaskOpen, setIsNewTaskOpen] = useState(false);
+  const [taskForm, setTaskForm] = useState({ title: "", deadline: "", projectId: "" });
+  const [submittingTask, setSubmittingTask] = useState(false);
+
+  const navigate = useNavigate();
+
+  const loadData = async () => {
+    try {
+      setLoading(true);
+      setError("");
+      const res = await getDashboardData();
+      if (res?.success) {
+        setData(res.data);
+      }
+    } catch (err) {
+      console.error(err);
+      setError("Failed to load dashboard metrics.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const saved = typeof window !== "undefined" && localStorage.getItem("theme");
-    const isDark = saved ? saved === "dark" : window.matchMedia?.("(prefers-color-scheme: dark)").matches;
-    setDark(!!isDark);
+    loadData();
   }, []);
-  useEffect(() => {
-    if (typeof document === "undefined") return;
-    document.documentElement.classList.toggle("dark", dark);
-    try { localStorage.setItem("theme", dark ? "dark" : "light"); } catch {}
-  }, [dark]);
+
+  const handleCreateProject = async (e) => {
+    e.preventDefault();
+    if (!projectForm.title.trim()) return;
+    try {
+      setSubmittingProject(true);
+      await createProject(projectForm);
+      setIsNewProjectOpen(false);
+      setProjectForm({ title: "", description: "", status: "In Progress" });
+      loadData();
+    } catch (err) {
+      alert(err.response?.data?.message || "Failed to create project");
+    } finally {
+      setSubmittingProject(false);
+    }
+  };
+
+  const handleCreateTask = async (e) => {
+    e.preventDefault();
+    if (!taskForm.title.trim() || !taskForm.projectId) {
+      alert("Please enter a task title and select a project.");
+      return;
+    }
+    try {
+      setSubmittingTask(true);
+      await createTask(taskForm);
+      setIsNewTaskOpen(false);
+      setTaskForm({ title: "", deadline: "", projectId: "" });
+      loadData();
+    } catch (err) {
+      alert(err.response?.data?.message || "Failed to create task");
+    } finally {
+      setSubmittingTask(false);
+    }
+  };
+
+  // Safe fallback stats
+  const stats = data?.stats || {
+    totalProjects: 0,
+    planningProjects: 0,
+    inProgressProjects: 0,
+    completedProjects: 0,
+    totalTasks: 0,
+    completedTasks: 0,
+    pendingTasks: 0,
+    taskCompletionRate: 0
+  };
+
+  const recentProjects = data?.recentProjects || [];
+  const upcomingTasks = data?.upcomingTasks || [];
+
+  // Donut chart calculations
+  const completionRate = stats.taskCompletionRate || (stats.totalTasks > 0 ? Math.round((stats.completedTasks / stats.totalTasks) * 100) : 0);
+  const radius = 64;
+  const circumference = 2 * Math.PI * radius;
+  const strokeDashoffset = circumference - (completionRate / 100) * circumference;
+
+  const completedPct = completionRate;
+  const inProgressPct = stats.totalTasks > 0 ? Math.round(((stats.totalTasks - stats.completedTasks) * 0.4) / stats.totalTasks * 100) : 0;
+  const toDoPct = Math.max(0, 100 - completedPct - inProgressPct);
 
   return (
-    <div className="w-full text-foreground">
-        
-        {/* Main */}
-        <main className="min-w-0 flex-1">
-          {/* Header */}
-          <DashboardHeader dark={dark} setDark={setDark}/>
+    <div className="space-y-5 pb-6">
+      {/* ROW 1: 4 Stat Cards matching Image 2 */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Total Projects */}
+        <div className="rounded-[26px] bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-slate-200/80 dark:border-slate-800 p-5 shadow-xs hover:shadow-md transition-all flex flex-col justify-between">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Total Projects</span>
+            <div className="w-10 h-10 rounded-2xl bg-purple-100 dark:bg-purple-950/60 text-purple-600 dark:text-purple-400 flex items-center justify-center">
+              <Folder className="h-5 w-5" />
+            </div>
+          </div>
+          <div className="mt-2">
+            <span className="text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white">
+              {stats.totalProjects}
+            </span>
+            <div className="flex items-center gap-1.5 mt-1 text-[11px] text-purple-600 dark:text-purple-400 font-medium">
+              <span className="h-1.5 w-1.5 rounded-full bg-purple-600" />
+              <span>{stats.inProgressProjects} in progress</span>
+            </div>
+          </div>
+        </div>
 
-          {/* Stats */}
-          <StatsGrid stats={stats}/>
+        {/* Total Tasks */}
+        <div className="rounded-[26px] bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-slate-200/80 dark:border-slate-800 p-5 shadow-xs hover:shadow-md transition-all flex flex-col justify-between">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Total Tasks</span>
+            <div className="w-10 h-10 rounded-2xl bg-indigo-100 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center">
+              <ListChecks className="h-5 w-5" />
+            </div>
+          </div>
+          <div className="mt-2">
+            <span className="text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white">
+              {stats.totalTasks}
+            </span>
+            <div className="flex items-center gap-1.5 mt-1 text-[11px] text-indigo-600 dark:text-indigo-400 font-medium">
+              <span className="h-1.5 w-1.5 rounded-full bg-indigo-600" />
+              <span>This is all time</span>
+            </div>
+          </div>
+        </div>
 
-          {/* Grid Row 1 */}
-          <section className="mt-3.75 grid grid-cols-1 gap-4 xl:grid-cols-3">
-            {/* Task completion */}
-            <TaskCompletion />
+        {/* Completed Tasks */}
+        <div className="rounded-[26px] bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-slate-200/80 dark:border-slate-800 p-5 shadow-xs hover:shadow-md transition-all flex flex-col justify-between">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Completed Tasks</span>
+            <div className="w-10 h-10 rounded-2xl bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+              <CheckCircle2 className="h-5 w-5" />
+            </div>
+          </div>
+          <div className="mt-2">
+            <span className="text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white">
+              {stats.completedTasks}
+            </span>
+            <div className="flex items-center gap-1.5 mt-1 text-[11px] text-emerald-600 dark:text-emerald-400 font-medium">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-600" />
+              <span>{completionRate}% of all tasks</span>
+            </div>
+          </div>
+        </div>
 
-            {/* Ongoing tasks */}
-            <OngoingTasks ongoingTasks={ongoingTasks}/>
+        {/* Pending Tasks */}
+        <div className="rounded-[26px] bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-slate-200/80 dark:border-slate-800 p-5 shadow-xs hover:shadow-md transition-all flex flex-col justify-between">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Pending Tasks</span>
+            <div className="w-10 h-10 rounded-2xl bg-amber-100 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 flex items-center justify-center">
+              <Clock className="h-5 w-5" />
+            </div>
+          </div>
+          <div className="mt-2">
+            <span className="text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white">
+              {stats.pendingTasks}
+            </span>
+            <div className="flex items-center gap-1.5 mt-1 text-[11px] text-amber-600 dark:text-amber-400 font-medium">
+              <span className="h-1.5 w-1.5 rounded-full bg-amber-600" />
+              <span>Due or pending</span>
+            </div>
+          </div>
+        </div>
+      </div>
 
-            {/* DSA */}
-            <DsaTracker week={week} streakData={streakData}/>
-          </section>
+      {/* ROW 2: 3 Cards matching Image 2 */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+        {/* Card 1: Tasks Completion Donut Ring */}
+        <div className="rounded-[28px] bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-slate-200/80 dark:border-slate-800 p-5 shadow-xs flex flex-col justify-between">
+          <div>
+            <h3 className="font-bold text-base text-slate-900 dark:text-white">Tasks Completion</h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Overall development progress</p>
 
-          {/* Grid Row 2 */}
-          <section className="mt-3.75 grid grid-cols-1 gap-4 xl:grid-cols-3">
-            {/* GitHub */}
-            <GithubOverview activity={activity}/>
+            <div className="flex items-center justify-between gap-4 mt-4">
+              {/* Circular SVG Donut */}
+              <div className="relative w-36 h-36 shrink-0 flex items-center justify-center">
+                <svg className="w-full h-full -rotate-90" viewBox="0 0 160 160">
+                  <circle
+                    cx="80"
+                    cy="80"
+                    r={radius}
+                    className="text-slate-100 dark:text-slate-800"
+                    strokeWidth="14"
+                    stroke="currentColor"
+                    fill="transparent"
+                  />
+                  <circle
+                    cx="80"
+                    cy="80"
+                    r={radius}
+                    stroke="url(#purpleGradient)"
+                    strokeWidth="14"
+                    strokeDasharray={circumference}
+                    strokeDashoffset={strokeDashoffset}
+                    strokeLinecap="round"
+                    fill="transparent"
+                    className="transition-all duration-700 ease-out"
+                  />
+                  <defs>
+                    <linearGradient id="purpleGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                      <stop offset="0%" stopColor="#8b5cf6" />
+                      <stop offset="100%" stopColor="#6366f1" />
+                    </linearGradient>
+                  </defs>
+                </svg>
 
-            {/* Recent Projects */}
-            <RecentProjects projects={projects}/>
+                <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
+                  <span className="text-2xl font-extrabold text-slate-900 dark:text-white tracking-tight">
+                    {completionRate}%
+                  </span>
+                  <span className="text-[10px] font-semibold text-slate-500 dark:text-slate-400">
+                    Completed
+                  </span>
+                </div>
+              </div>
 
-            {/* Quick actions */}
-            <QuickActions />
-          </section>
-        </main>
+              {/* Legend */}
+              <div className="space-y-2.5 flex-1 text-xs">
+                <div className="flex items-center justify-between">
+                  <span className="flex items-center gap-2 text-slate-600 dark:text-slate-300">
+                    <span className="h-2 w-2 rounded-full bg-purple-600" />
+                    Completed
+                  </span>
+                  <span className="font-semibold text-slate-800 dark:text-slate-200">
+                    {stats.completedTasks} ({completedPct}%)
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="flex items-center gap-2 text-slate-600 dark:text-slate-300">
+                    <span className="h-2 w-2 rounded-full bg-indigo-500" />
+                    In Progress
+                  </span>
+                  <span className="font-semibold text-slate-800 dark:text-slate-200">
+                    {stats.inProgressProjects} ({inProgressPct}%)
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="flex items-center gap-2 text-slate-600 dark:text-slate-300">
+                    <span className="h-2 w-2 rounded-full bg-amber-400" />
+                    To Do
+                  </span>
+                  <span className="font-semibold text-slate-800 dark:text-slate-200">
+                    {stats.pendingTasks} ({toDoPct}%)
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Bottom Motivation Banner matching Image 2 */}
+          <div className="mt-4 p-2.5 rounded-2xl bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 text-xs font-semibold flex items-center justify-center gap-2">
+            <span>🎯 Great progress! Keep pushing forward 💪</span>
+          </div>
+        </div>
+
+        {/* Card 2: Upcoming Deadlines */}
+        <div className="rounded-[28px] bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-slate-200/80 dark:border-slate-800 p-5 shadow-xs flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between">
+              <h3 className="font-bold text-base text-slate-900 dark:text-white">Upcoming Deadlines</h3>
+              <Link to="/tasks" className="text-xs font-semibold text-purple-600 dark:text-purple-400 hover:underline">
+                View all
+              </Link>
+            </div>
+
+            <div className="mt-3 divide-y divide-slate-100 dark:divide-slate-800">
+              {upcomingTasks.length === 0 ? (
+                <div className="py-8 text-center text-slate-400 text-xs">
+                  <Calendar className="h-8 w-8 mx-auto text-slate-300 dark:text-slate-700 mb-1.5" />
+                  No urgent deadlines due soon. You are all set!
+                </div>
+              ) : (
+                upcomingTasks.slice(0, 4).map((task) => {
+                  const daysLeft = Math.ceil((new Date(task.deadline) - new Date()) / (1000 * 60 * 60 * 24));
+                  return (
+                    <div key={task._id} className="py-2.5 flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="w-8 h-8 rounded-xl bg-purple-50 dark:bg-purple-950/50 text-purple-600 flex items-center justify-center shrink-0">
+                          <Folder className="h-4 w-4" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-xs font-bold text-slate-900 dark:text-white truncate">
+                            {task.title}
+                          </p>
+                          <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate">
+                            {task.projectId?.title || "Project Milestone"}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <p className="text-[11px] font-semibold text-slate-700 dark:text-slate-300">
+                          {new Date(task.deadline).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                        </p>
+                        <p className={`text-[10px] font-medium ${daysLeft <= 3 ? "text-rose-500 font-bold" : "text-amber-500"}`}>
+                          {daysLeft <= 0 ? "Due today" : `${daysLeft} days left`}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Card 3: DSA Tracker Card matching Image 2 */}
+        <div className="rounded-[28px] bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-slate-200/80 dark:border-slate-800 p-5 shadow-xs flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between">
+              <h3 className="font-bold text-base text-slate-900 dark:text-white flex items-center gap-1.5">
+                DSA Tracker
+              </h3>
+              <Link to="/dsa" className="text-slate-400 hover:text-slate-700 dark:hover:text-white">
+                <ChevronRight className="h-4 w-4" />
+              </Link>
+            </div>
+
+            {/* Streak & Best Streak */}
+            <div className="mt-3 flex items-center justify-between">
+              <div>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400">Current Streak</p>
+                <div className="flex items-baseline gap-1 mt-0.5">
+                  <span className="text-2xl font-extrabold text-slate-900 dark:text-white">12</span>
+                  <span className="text-base">🔥</span>
+                  <span className="text-xs font-semibold text-slate-500">days</span>
+                </div>
+                <p className="text-[10px] text-slate-400 mt-0.5">Best Streak: 23 days</p>
+              </div>
+
+              {/* Weekly Calendar Dots Grid (M T W T F S S) */}
+              <div className="flex items-center gap-1.5">
+                {["M", "T", "W", "T", "F", "S", "S"].map((day, idx) => (
+                  <div key={idx} className="flex flex-col items-center gap-1">
+                    <span className="text-[10px] font-bold text-slate-400">{day}</span>
+                    <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
+                    <span className={`h-2.5 w-2.5 rounded-full ${idx < 5 ? "bg-emerald-500" : "bg-slate-200 dark:bg-slate-700"}`} />
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Today's Goal Progress */}
+            <div className="mt-5 pt-4 border-t border-slate-100 dark:border-slate-800">
+              <div className="flex items-center justify-between text-xs font-semibold mb-1.5">
+                <span className="text-slate-600 dark:text-slate-300">Today's Goal</span>
+                <span className="text-slate-900 dark:text-white">2 / 2 problems</span>
+              </div>
+              <div className="w-full bg-slate-100 dark:bg-slate-800 h-2 rounded-full overflow-hidden">
+                <div className="bg-purple-600 h-full rounded-full w-full" />
+              </div>
+              <p className="text-[11px] font-semibold text-purple-600 dark:text-purple-400 mt-2 flex items-center gap-1">
+                Goal completed! 🎉
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ROW 3: 3 Cards matching Image 2 */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+        {/* Card 1: DSA Progress Sparkline */}
+        <div className="rounded-[28px] bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-slate-200/80 dark:border-slate-800 p-5 shadow-xs flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="font-bold text-base text-slate-900 dark:text-white">DSA Progress</h3>
+              <Button asChild variant="outline" size="xs" className="rounded-xl text-xs font-semibold h-7">
+                <Link to="/dsa">Start Practicing</Link>
+              </Button>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 mt-4">
+              {/* This Week */}
+              <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800">
+                <p className="text-[10px] text-slate-500 font-medium">This Week</p>
+                <p className="text-xl font-bold text-slate-900 dark:text-white mt-0.5">18</p>
+                <p className="text-[10px] text-purple-600 font-semibold">Problems Solved</p>
+                {/* Mini SVG Trend Line */}
+                <svg className="w-full h-7 mt-2 text-purple-500" viewBox="0 0 100 30" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <path d="M0 25 Q20 20, 35 15 T70 10 T100 5" strokeLinecap="round" />
+                </svg>
+              </div>
+
+              {/* This Month */}
+              <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800">
+                <p className="text-[10px] text-slate-500 font-medium">This Month</p>
+                <p className="text-xl font-bold text-slate-900 dark:text-white mt-0.5">56</p>
+                <p className="text-[10px] text-indigo-600 font-semibold">Problems Solved</p>
+                <svg className="w-full h-7 mt-2 text-indigo-500" viewBox="0 0 100 30" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <path d="M0 28 Q25 22, 50 18 T80 8 T100 3" strokeLinecap="round" />
+                </svg>
+              </div>
+            </div>
+          </div>
+
+          <p className="text-[11px] text-slate-400 dark:text-slate-500 italic mt-4 border-t border-slate-100 dark:border-slate-800 pt-3">
+            "The only way to get better is to practice consistently. - TrackPort"
+          </p>
+        </div>
+
+        {/* Card 2: GitHub Overview */}
+        <div className="rounded-[28px] bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-slate-200/80 dark:border-slate-800 p-5 shadow-xs flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between">
+              <h3 className="font-bold text-base text-slate-900 dark:text-white flex items-center gap-1.5">
+                <GitBranch className="h-4 w-4 text-slate-600 dark:text-slate-300" />
+                GitHub Overview
+              </h3>
+              <button
+                onClick={() => alert("GitHub account connected! Commit logs auto-syncing.")}
+                className="text-xs font-semibold text-purple-600 dark:text-purple-400 hover:underline"
+              >
+                View Details
+              </button>
+            </div>
+
+            {/* Quick Metrics */}
+            <div className="grid grid-cols-3 gap-2 mt-3 p-2.5 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 text-center">
+              <div>
+                <p className="text-sm font-extrabold text-slate-900 dark:text-white">24</p>
+                <p className="text-[10px] text-slate-500">Total Repos</p>
+              </div>
+              <div>
+                <p className="text-sm font-extrabold text-slate-900 dark:text-white">7</p>
+                <p className="text-[10px] text-slate-500">This Week</p>
+              </div>
+              <div>
+                <p className="text-sm font-extrabold text-slate-900 dark:text-white">112</p>
+                <p className="text-[10px] text-slate-500">Total Commits</p>
+              </div>
+            </div>
+
+            {/* Recent Git Activity */}
+            <div className="mt-3 space-y-2">
+              <div className="flex items-center gap-2.5 text-xs">
+                <GitCommit className="h-3.5 w-3.5 text-purple-600 shrink-0" />
+                <span className="text-slate-700 dark:text-slate-300 truncate">
+                  Pushed to TrackPort <span className="text-slate-400">· 2 commits</span>
+                </span>
+                <span className="text-[10px] text-slate-400 ml-auto shrink-0">2h ago</span>
+              </div>
+              <div className="flex items-center gap-2.5 text-xs">
+                <GitBranch className="h-3.5 w-3.5 text-indigo-500 shrink-0" />
+                <span className="text-slate-700 dark:text-slate-300 truncate">
+                  Created branch <span className="font-mono text-[11px]">feature/dashboard</span>
+                </span>
+                <span className="text-[10px] text-slate-400 ml-auto shrink-0">5h ago</span>
+              </div>
+              <div className="flex items-center gap-2.5 text-xs">
+                <GitPullRequest className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+                <span className="text-slate-700 dark:text-slate-300 truncate">
+                  Opened PR #23 TrackPort improvements
+                </span>
+                <span className="text-[10px] text-slate-400 ml-auto shrink-0">1d ago</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Card 3: Quick Actions 4-Grid matching Image 2 */}
+        <div className="rounded-[28px] bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-slate-200/80 dark:border-slate-800 p-5 shadow-xs flex flex-col justify-between">
+          <div>
+            <h3 className="font-bold text-base text-slate-900 dark:text-white">Quick Actions</h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Shortcuts to get things done</p>
+
+            <div className="grid grid-cols-2 gap-3 mt-4">
+              {/* Action 1: New Project */}
+              <button
+                onClick={() => setIsNewProjectOpen(true)}
+                className="p-3.5 rounded-2xl bg-purple-50/80 dark:bg-purple-950/40 border border-purple-200/60 dark:border-purple-800/50 hover:bg-purple-100/80 dark:hover:bg-purple-900/60 transition-all text-left group"
+              >
+                <div className="w-8 h-8 rounded-xl bg-purple-600 text-white flex items-center justify-center mb-2 shadow-xs group-hover:scale-105 transition-transform">
+                  <Plus className="h-4 w-4" />
+                </div>
+                <p className="text-xs font-bold text-slate-900 dark:text-white">New Project</p>
+                <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">Create a new project</p>
+              </button>
+
+              {/* Action 2: New Task */}
+              <button
+                onClick={() => setIsNewTaskOpen(true)}
+                className="p-3.5 rounded-2xl bg-indigo-50/80 dark:bg-indigo-950/40 border border-indigo-200/60 dark:border-indigo-800/50 hover:bg-indigo-100/80 dark:hover:bg-indigo-900/60 transition-all text-left group"
+              >
+                <div className="w-8 h-8 rounded-xl bg-indigo-600 text-white flex items-center justify-center mb-2 shadow-xs group-hover:scale-105 transition-transform">
+                  <ListChecks className="h-4 w-4" />
+                </div>
+                <p className="text-xs font-bold text-slate-900 dark:text-white">New Task</p>
+                <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">Add a new task</p>
+              </button>
+
+              {/* Action 3: DSA Practice */}
+              <button
+                onClick={() => navigate("/dsa")}
+                className="p-3.5 rounded-2xl bg-emerald-50/80 dark:bg-emerald-950/40 border border-emerald-200/60 dark:border-emerald-800/50 hover:bg-emerald-100/80 dark:hover:bg-emerald-900/60 transition-all text-left group"
+              >
+                <div className="w-8 h-8 rounded-xl bg-emerald-600 text-white flex items-center justify-center mb-2 shadow-xs group-hover:scale-105 transition-transform">
+                  <Code2 className="h-4 w-4" />
+                </div>
+                <p className="text-xs font-bold text-slate-900 dark:text-white">DSA Practice</p>
+                <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">Solve problems</p>
+              </button>
+
+              {/* Action 4: View Analytics */}
+              <button
+                onClick={() => navigate("/analytics")}
+                className="p-3.5 rounded-2xl bg-amber-50/80 dark:bg-amber-950/40 border border-amber-200/60 dark:border-amber-800/50 hover:bg-amber-100/80 dark:hover:bg-amber-900/60 transition-all text-left group"
+              >
+                <div className="w-8 h-8 rounded-xl bg-amber-500 text-white flex items-center justify-center mb-2 shadow-xs group-hover:scale-105 transition-transform">
+                  <BarChart3 className="h-4 w-4" />
+                </div>
+                <p className="text-xs font-bold text-slate-900 dark:text-white">View Analytics</p>
+                <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">AI insights & stats</p>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* QUICK ACTION: CREATE PROJECT MODAL */}
+      <Dialog open={isNewProjectOpen} onOpenChange={setIsNewProjectOpen}>
+        <DialogContent className="rounded-[32px] max-w-md p-6">
+          <DialogHeader>
+            <DialogTitle>Create New Project</DialogTitle>
+            <DialogDescription>Add a new development workspace to track.</DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleCreateProject} className="space-y-4 py-2">
+            <div>
+              <Label htmlFor="qp-title">Title *</Label>
+              <Input
+                id="qp-title"
+                required
+                placeholder="e.g. Distributed Task Queue"
+                value={projectForm.title}
+                onChange={(e) => setProjectForm({ ...projectForm, title: e.target.value })}
+                className="rounded-xl mt-1"
+              />
+            </div>
+            <div>
+              <Label htmlFor="qp-desc">Description</Label>
+              <Input
+                id="qp-desc"
+                placeholder="Short summary of the project"
+                value={projectForm.description}
+                onChange={(e) => setProjectForm({ ...projectForm, description: e.target.value })}
+                className="rounded-xl mt-1"
+              />
+            </div>
+            <DialogFooter className="pt-2">
+              <Button type="button" variant="outline" onClick={() => setIsNewProjectOpen(false)} className="rounded-xl">
+                Cancel
+              </Button>
+              <Button type="submit" disabled={submittingProject} className="rounded-xl bg-purple-600 hover:bg-purple-700 text-white">
+                {submittingProject ? "Creating..." : "Create Project"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* QUICK ACTION: CREATE TASK MODAL */}
+      <Dialog open={isNewTaskOpen} onOpenChange={setIsNewTaskOpen}>
+        <DialogContent className="rounded-[32px] max-w-md p-6">
+          <DialogHeader>
+            <DialogTitle>Add New Task</DialogTitle>
+            <DialogDescription>Assign a task and deadline to a project.</DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleCreateTask} className="space-y-4 py-2">
+            <div>
+              <Label htmlFor="qt-title">Task Title *</Label>
+              <Input
+                id="qt-title"
+                required
+                placeholder="e.g. Implement JWT refresh token rotation"
+                value={taskForm.title}
+                onChange={(e) => setTaskForm({ ...taskForm, title: e.target.value })}
+                className="rounded-xl mt-1"
+              />
+            </div>
+            <div>
+              <Label>Select Associated Project *</Label>
+              <Select value={taskForm.projectId} onValueChange={(val) => setTaskForm({ ...taskForm, projectId: val })}>
+                <SelectTrigger className="rounded-xl mt-1">
+                  <SelectValue placeholder="Choose a project" />
+                </SelectTrigger>
+                <SelectContent className="rounded-2xl">
+                  {recentProjects.map((p) => (
+                    <SelectItem key={p._id} value={p._id}>
+                      {p.title}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label htmlFor="qt-date">Deadline (Optional)</Label>
+              <Input
+                id="qt-date"
+                type="date"
+                value={taskForm.deadline}
+                onChange={(e) => setTaskForm({ ...taskForm, deadline: e.target.value })}
+                className="rounded-xl mt-1"
+              />
+            </div>
+            <DialogFooter className="pt-2">
+              <Button type="button" variant="outline" onClick={() => setIsNewTaskOpen(false)} className="rounded-xl">
+                Cancel
+              </Button>
+              <Button type="submit" disabled={submittingTask} className="rounded-xl bg-purple-600 hover:bg-purple-700 text-white">
+                {submittingTask ? "Adding..." : "Add Task"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
-
-

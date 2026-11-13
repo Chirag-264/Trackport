@@ -1,98 +1,144 @@
+import React from "react";
 import {
   LayoutDashboard,
   FolderKanban,
   ListTodo,
-  Brain,
-  GitBranch,
-  Settings,
-  Sparkles,
-  ListChecks,
   Code2,
   BarChart3,
-  Flame,
-  ChevronRight
+  Settings,
+  LogOut,
+  Layers,
+  ChevronDown,
+  X,
 } from "lucide-react";
+import { NavLink, useNavigate } from "react-router-dom";
+import { useAuth } from "@/context/AuthContext";
 
-import { Separator } from "./ui/separator";
-import { Avatar, AvatarFallback } from "./ui/avatar";
+export default function Sidebar({ onCloseMobile }) {
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
 
-import { NavLink } from "react-router-dom";
-
-const Sidebar = ({className}) => {
-  const nav = [
-    { icon: LayoutDashboard, label: "Dashboard", active: true },
-    { icon: FolderKanban, label: "Projects" },
-    { icon: ListChecks, label: "Tasks" },
-    { icon: Code2, label: "DSA Tracker" },
-    { icon: BarChart3, label: "Analytics" },
-    { icon: GitBranch, label: "GitBranch" },
-    { icon: Settings, label: "Settings" },
+  const navItems = [
+    { label: "Dashboard", to: "/dashboard", icon: LayoutDashboard },
+    { label: "Projects", to: "/projects", icon: FolderKanban },
+    { label: "Tasks", to: "/tasks", icon: ListTodo },
+    { label: "DSA Tracker", to: "/dsa", icon: Code2 },
+    { label: "Analytics", to: "/analytics", icon: BarChart3 },
   ];
 
-  const linkStyle =
-    "flex items-center gap-3 px-4 py-3 rounded-2xl transition-all font-medium";
+  const getInitials = (name) => {
+    if (!name) return "C";
+    const parts = name.trim().split(" ");
+    if (parts.length >= 2) return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
+    return name.slice(0, 1).toUpperCase();
+  };
+
+  const handleLogout = () => {
+    logout();
+    navigate("/auth/login");
+    if (onCloseMobile) onCloseMobile();
+  };
+
+  const handleNavClick = () => {
+    if (onCloseMobile) onCloseMobile();
+  };
 
   return (
-    <aside
-      className={`
-        sticky top-6 hidden
-        h-auto
-        w-64 shrink-0
-        lg:flex flex-col
-
-        rounded-3xl
-        p-5
-
-        ${className}
-      `}
-    >
-
-          <div className="flex items-center gap-2.5 px-2">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-linear-to-br from-primary to-[oklch(0.65_0.22_260)] text-primary-foreground shadow-glow">
-              <Sparkles className="h-4 w-4" />
+    <aside className="w-64 shrink-0 flex flex-col justify-between p-5 lg:p-6 bg-white/55 dark:bg-slate-900/50 backdrop-blur-2xl border-r border-slate-200/50 dark:border-white/10 select-none h-full">
+      {/* Brand Header */}
+      <div>
+        <div className="flex items-center justify-between px-2 mb-8">
+          <div className="flex items-center gap-2.5">
+            <div className="h-9 w-9 rounded-2xl bg-gradient-to-tr from-purple-700 to-indigo-600 text-white flex items-center justify-center shadow-md shadow-purple-500/25">
+              <Layers className="h-5 w-5" />
             </div>
-            <span className="font-display text-lg font-semibold">TrackPort</span>
+            <span className="font-extrabold text-lg text-slate-900 dark:text-white tracking-tight">
+              TrackPort
+            </span>
           </div>
 
-          <nav className="mt-8 flex flex-col gap-1">
-            {nav.map((item) => (
-              <button
-                key={item.label}
-                className={`group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors ${
-                  item.active
-                    ? "bg-primary-soft text-[oklch(0.35_0.18_278)]"
-                    : "text-muted-foreground hover:bg-secondary hover:text-foreground"
-                }`}
-              >
-                <item.icon className="h-4 w-4" />
-                {item.label}
-                {item.active && <span className="ml-auto h-1.5 w-1.5 rounded-full bg-primary" />}
-              </button>
-            ))}
-          </nav>
+          {/* Mobile Close Button */}
+          {onCloseMobile && (
+            <button
+              onClick={onCloseMobile}
+              className="lg:hidden p-1.5 rounded-xl text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          )}
+        </div>
 
-          <div className="mt-auto">
-            <div className="rounded-2xl border border-border bg-secondary/50 p-4">
-              <div className="flex items-center gap-2 text-xs font-medium text-foreground">
-                <Flame className="h-3.5 w-3.5 text-[oklch(0.65_0.2_35)]" />
-                12 day streak
-              </div>
-              <p className="mt-1 text-xs text-muted-foreground">Keep going — solve 2 problems today.</p>
-            </div>
-            <Separator className="my-4" />
-            <div className="flex items-center gap-3 px-1">
-              <Avatar className="h-9 w-9">
-                <AvatarFallback className="bg-primary text-primary-foreground text-xs font-semibold">CH</AvatarFallback>
-              </Avatar>
-              <div className="min-w-0 flex-1">
-                <div className="truncate text-sm font-medium">Chirag</div>
-                <div className="truncate text-xs text-muted-foreground">Developer</div>
-              </div>
-              <ChevronRight className="h-4 w-4 text-muted-foreground" />
-            </div>
+        {/* Navigation Tabs */}
+        <nav className="space-y-1.5">
+          {navItems.map((item) => (
+            <NavLink
+              key={item.label}
+              to={item.to}
+              onClick={handleNavClick}
+              className={({ isActive }) =>
+                `flex items-center gap-3.5 px-3.5 py-2.5 rounded-2xl text-xs sm:text-sm font-medium transition-all ${
+                  isActive
+                    ? "bg-[#EDE9FE] dark:bg-purple-950/60 text-[#7C3AED] dark:text-purple-300 font-semibold shadow-xs"
+                    : "text-slate-600 dark:text-slate-400 hover:bg-white/70 dark:hover:bg-slate-800/60 hover:text-slate-900 dark:hover:text-white"
+                }`
+              }
+            >
+              <item.icon className="h-4 w-4 shrink-0" />
+              <span>{item.label}</span>
+            </NavLink>
+          ))}
+        </nav>
+      </div>
+
+      {/* Bottom Actions & User Profile */}
+      <div className="space-y-4 pt-4 border-t border-slate-200/50 dark:border-slate-800/60">
+        <nav className="space-y-1">
+          <NavLink
+            to="/settings"
+            onClick={handleNavClick}
+            className={({ isActive }) =>
+              `flex items-center gap-3.5 px-3.5 py-2 rounded-2xl text-xs sm:text-sm font-medium transition-all ${
+                isActive
+                  ? "bg-[#EDE9FE] dark:bg-purple-950/60 text-[#7C3AED] dark:text-purple-300 font-semibold"
+                  : "text-slate-600 dark:text-slate-400 hover:bg-white/70 dark:hover:bg-slate-800/60 hover:text-slate-900 dark:hover:text-white"
+              }`
+            }
+          >
+            <Settings className="h-4 w-4 shrink-0" />
+            <span>Settings</span>
+          </NavLink>
+
+          <button
+            onClick={handleLogout}
+            className="w-full flex items-center gap-3.5 px-3.5 py-2 rounded-2xl text-xs sm:text-sm font-medium text-slate-600 dark:text-slate-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 hover:text-rose-600 dark:hover:text-rose-400 transition-all text-left"
+          >
+            <LogOut className="h-4 w-4 shrink-0" />
+            <span>Logout</span>
+          </button>
+        </nav>
+
+        {/* Profile Pill matching Image 2 */}
+        <div
+          onClick={() => {
+            navigate("/settings");
+            if (onCloseMobile) onCloseMobile();
+          }}
+          className="flex items-center gap-2.5 p-2 rounded-2xl bg-white/75 dark:bg-slate-900/60 border border-slate-200/60 dark:border-slate-800 shadow-xs cursor-pointer hover:bg-white dark:hover:bg-slate-850 transition-all"
+        >
+          <div className="h-8 w-8 rounded-xl bg-purple-600 text-white font-bold text-xs flex items-center justify-center shrink-0">
+            {getInitials(user?.name)}
           </div>
-        </aside>
+          <div className="min-w-0 flex-1">
+            <p className="text-xs font-semibold text-slate-900 dark:text-white truncate">
+              {user?.name || "Chirag"}
+            </p>
+            <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate">
+              {user?.email || "chirag@example.com"}
+            </p>
+          </div>
+          <ChevronDown className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+        </div>
+      </div>
+    </aside>
   );
-};
-
-export default Sidebar;
+}

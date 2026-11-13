@@ -1,0 +1,16 @@
+{
+  "name": "trackport",
+  "version": "1.0.0",
+  "description": "Student developer productivity and progress-tracking platform",
+  "scripts": {
+    "dev:backend": "npm --prefix backend run dev",
+    "dev:frontend": "npm --prefix frontend run dev",
+    "build:frontend": "npm --prefix frontend run build",
+    "start:backend": "npm --prefix backend start",
+    "start:frontend": "npm --prefix frontend run preview"
+  },
+  "keywords": ["developer", "productivity", "portfolio", "mern", "tasks", "projects"],
+  "author": "",
+  "license": "ISC"
+}
+

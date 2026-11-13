@@ -1,17 +1,23 @@
 import { Router } from "express";
-import { getTask, getTasks, createTask, updateTask, deleteTask } from "../controllers/task.controller.js";
+import {
+    getTask,
+    getTasks,
+    createTask,
+    updateTask,
+    deleteTask,
+    reorderTasks
+} from "../controllers/task.controller.js";
 import { authUser } from "../middlewares/auth.middleware.js";
 
-const taskRouter = new Router();
+const taskRouter = Router();
 
-taskRouter.get('/tasks', authUser, getTasks);
+taskRouter.use(authUser);
 
-taskRouter.get('/tasks/:id', authUser, getTask);
-
-taskRouter.post('/tasks', authUser, createTask);
-
-taskRouter.post('/tasks/:id', authUser, updateTask);
-
-taskRouter.delete('/tasks/:id', authUser, deleteTask);
+taskRouter.get('/', getTasks);
+taskRouter.post('/', createTask);
+taskRouter.put('/reorder', reorderTasks);
+taskRouter.get('/:id', getTask);
+taskRouter.put('/:id', updateTask);
+taskRouter.delete('/:id', deleteTask);
 
 export default taskRouter;
