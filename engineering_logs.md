@@ -482,3 +482,21 @@ Libraries or concepts to understand:
 How I checked it:
 Known limits or next learning step:
 ```
+
+### 2026-11-25 - Migrate Gemini chat to the Interactions API
+
+User outcome: TrackPort AI no longer requests the retired `gemini-2.0-flash` model. Chat now targets `gemini-3.8-flash` through Google's Interactions API.
+
+Files changed: `backend/services/gemini.service.js`; this engineering log.
+
+Request/data flow: The analytics route still decides when project and LeetCode context is relevant and calls `chatWithAI(prompt, context)`. The service combines the user question with compact context only when provided, sends a server-side HTTPS POST to `/v1beta/interactions`, passes `GEMINI_API_KEY` in the `x-goog-api-key` header, and supplies a `system_instruction`, `input`, and `generation_config`. It extracts text from `output_text` when present or from `model_output` steps in the REST response. Non-2xx API responses surface Google's error message to the existing route error handling.
+
+Why this workflow: Google recommends the Interactions API for new integrations. The model identifier is `gemini-3.8-flash` (without a `models/` prefix); the route changes from a model-specific `:generateContent` URL to the single `/interactions` endpoint, and the request shape changes from `contents`/`generationConfig` to `input`/`generation_config`. Keeping the key in an HTTP header avoids putting credentials in the URL and the existing built-in `https` client avoids adding a dependency. Selective context remains in the analytics route, so general questions do not pay the token cost of sending project/DSA records.
+
+Libraries and concepts to understand: `backend/routes/analytics.routes.js` is the Express entry point and context selector. `backend/services/gemini.service.js` is the provider adapter: it owns endpoint configuration, authentication header, JSON serialization, timeout, HTTP error handling, and provider-specific response normalization. Read about REST request/response contracts, API keys in headers, model output steps, async Promises, and why context relevance affects token usage. Google docs: [Interactions API](https://ai.google.dev/api/interactions-api).
+
+Configuration and deployment: No new environment variable is required. Keep the existing `GEMINI_API_KEY` set on the backend host (Render); do not put it in the React/Netlify environment. Deploy the backend after committing this change. If Google reports the model is unavailable for the key/project, verify model access in Google AI Studio.
+
+How I checked it: Compared the endpoint, request fields, authentication header, model name, and REST response structure against Google's current Interactions API documentation, then reviewed the resulting service source. No live Gemini request or automated test was run from this workspace.
+
+Known limits or next learning step: This adapter makes a synchronous request with a 15-second timeout and does not stream responses. The interaction is stateless from TrackPort's point of view; conversation history is not persisted or sent unless the application explicitly adds it later.
