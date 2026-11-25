@@ -459,6 +459,16 @@ How I checked it: Source inspection only. No build, API request, or MongoDB writ
 
 Known boundary: The buttons record a daily total from 0 through 100. Logged problem entries count automatically, and the displayed count will not go below that tracked count. Alfa's contribution calendar still reports submission activity; the manual daily value supplements the calendar but does not create individual problem titles or difficulty metadata.
 
+### 2026-11-25 — Prepare React Router fallback for Netlify
+
+User outcome: Netlify serves the React app for direct visits and browser refreshes on client-side routes such as `/dsa`.
+
+Implementation: Added `frontend/public/_redirects` with `/* /index.html 200`. Vite copies files from `public` into the build output, so Netlify receives its SPA rewrite rule with the generated frontend. Netlify applies the rewrite only after checking for a real static file, then serves `index.html` for app routes so React Router can render the requested view.
+
+How I checked it: Read the Netlify SPA redirect documentation and confirmed the Vite `public` directory exists. No build or live deploy was run.
+
+Netlify deploy troubleshooting: The site returned `main.jsx` as `application/octet-stream`, which means Netlify was serving the unbuilt source HTML instead of Vite's generated asset references. Added a root `netlify.toml` declaring `frontend` as the build base, `npm run build` as the command, and `dist` as the publish directory. This repository configuration takes precedence over conflicting UI settings. The ad-related Permissions-Policy console warnings are browser warnings and are unrelated to the module MIME failure. After pushing this file, trigger a fresh Netlify deploy (clear cache if needed) and verify the deployed HTML references `/assets/*.js` rather than `/src/main.jsx`.
+
 Copy this section for each future piece of work:
 
 ```text
