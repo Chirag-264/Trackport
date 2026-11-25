@@ -25,7 +25,6 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
-import { Avatar } from '@/components/ui/avatar';
 import {
   Select,
   SelectContent,
@@ -136,7 +135,6 @@ export default function Settings() {
                 <Label className="mb-3 block">Theme</Label>
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                   {themes.map((t) => {
-                    const isActive = (t.id === 'system' ? theme : t.id) === theme || (t.id === 'system' && false);
                     const Icon = t.id === 'light' ? Sun : t.id === 'dark' ? Moon : Monitor;
                     return (
                       <button

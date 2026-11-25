@@ -48,7 +48,7 @@ export default function Tasks() {
   // New Task form
   const [newTitle, setNewTitle] = useState("");
   const [newDeadline, setNewDeadline] = useState("");
-  const [targetProject, setTargetProject] = useState("");
+  const [targetProject, setTargetProject] = useState("none");
   const [addingTask, setAddingTask] = useState(false);
 
   // Edit Task modal
@@ -67,9 +67,7 @@ export default function Tasks() {
 
       if (projRes?.success) {
         setProjects(projRes.data.projects || []);
-        if (projRes.data.projects.length > 0 && !targetProject) {
-          setTargetProject(projRes.data.projects[0]._id);
-        }
+        if (projRes.data.projects.length === 0) setTargetProject("none");
       }
 
       if (taskRes?.success) {
@@ -88,8 +86,8 @@ export default function Tasks() {
 
   const handleAddTask = async (e) => {
     e.preventDefault();
-    if (!newTitle.trim() || !targetProject) {
-      alert("Please enter a task title and choose an associated project.");
+    if (!newTitle.trim()) {
+      alert("Please enter a task title.");
       return;
     }
 
@@ -98,7 +96,7 @@ export default function Tasks() {
       await createTask({
         title: newTitle.trim(),
         deadline: newDeadline || undefined,
-        projectId: targetProject
+        ...(targetProject !== "none" ? { projectId: targetProject } : {})
       });
       setNewTitle("");
       setNewDeadline("");
@@ -245,9 +243,10 @@ export default function Tasks() {
 
           <Select value={targetProject} onValueChange={setTargetProject}>
             <SelectTrigger className="h-11 sm:w-44 rounded-2xl bg-slate-50/80 dark:bg-slate-800/80 border-slate-200/80 dark:border-slate-700 text-xs">
-              <SelectValue placeholder="Choose Project" />
+              <SelectValue placeholder="Optional project" />
             </SelectTrigger>
             <SelectContent className="rounded-2xl">
+              <SelectItem value="none">No project</SelectItem>
               {projects.map((p) => (
                 <SelectItem key={p._id} value={p._id}>
                   {p.title}
@@ -324,7 +323,7 @@ export default function Tasks() {
                     </p>
                     <div className="flex items-center gap-2 mt-0.5 text-[11px] text-slate-400">
                       <span className="font-semibold text-purple-600 dark:text-purple-400">
-                        {task.projectId?.title || "Project"}
+                        {task.projectId?.title || "Personal task"}
                       </span>
                       {task.deadline && (
                         <>
@@ -346,7 +345,7 @@ export default function Tasks() {
                 <div className="flex items-center gap-1 shrink-0">
                   <button
                     type="button"
-                    disabled={idx === 0}
+                    disabled={selectedProjectId === "all" || idx === 0}
                     onClick={() => moveTask(idx, -1)}
                     title="Move Up in sprint"
                     className="h-8 w-8 rounded-xl flex items-center justify-center text-slate-400 hover:text-slate-700 dark:hover:text-white disabled:opacity-30 transition-colors"
@@ -355,7 +354,7 @@ export default function Tasks() {
                   </button>
                   <button
                     type="button"
-                    disabled={idx === tasks.length - 1}
+                    disabled={selectedProjectId === "all" || idx === tasks.length - 1}
                     onClick={() => moveTask(idx, 1)}
                     title="Move Down in sprint"
                     className="h-8 w-8 rounded-xl flex items-center justify-center text-slate-400 hover:text-slate-700 dark:hover:text-white disabled:opacity-30 transition-colors"

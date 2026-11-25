@@ -1,16 +1,24 @@
 import mongoose from 'mongoose';
 import Project from '../models/project.model.js';
 import Task from '../models/tasks.model.js';
+import { getGithubRepositories } from '../services/github.service.js';
 
 async function createProject(req, res, next) {
     try {
         const { title, description, status, githubUrl, liveUrl, techStack } = req.body;
         const userId = req.user._id;
 
-        if (!title || !title.trim()) {
+        if (typeof title !== 'string' || !title.trim()) {
             const error = new Error('Project title is required');
             error.statusCode = 400;
             return next(error);
+        }
+        for (const [field, value] of Object.entries({ description, githubUrl, liveUrl })) {
+            if (value !== undefined && typeof value !== 'string') {
+                const error = new Error(`${field} must be text`);
+                error.statusCode = 400;
+                return next(error);
+            }
         }
 
         const existingProject = await Project.findOne({
@@ -56,6 +64,11 @@ async function getProjects(req, res, next) {
     try {
         const userId = req.user._id;
         const { search, status, sortBy = 'createdAt', order = 'desc' } = req.query;
+        if (search !== undefined && typeof search !== 'string') {
+            const error = new Error('Search must be a single text value');
+            error.statusCode = 400;
+            return next(error);
+        }
 
         const filter = { userId };
 
@@ -64,7 +77,8 @@ async function getProjects(req, res, next) {
         }
 
         if (search && search.trim()) {
-            const searchRegex = new RegExp(search.trim(), 'i');
+            const safeSearch = search.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const searchRegex = new RegExp(safeSearch, 'i');
             filter.$or = [
                 { title: searchRegex },
                 { description: searchRegex },
@@ -147,7 +161,7 @@ async function getProject(req, res, next) {
         }
 
         // Fetch associated tasks sorted by manual order
-        const tasks = await Task.find({ projectId }).sort({ order: 1, createdAt: 1 });
+        const tasks = await Task.find({ projectId, userId: req.user._id }).sort({ order: 1, createdAt: 1 });
 
         res.status(200).json({
             success: true,
@@ -186,7 +200,7 @@ async function updateProject(req, res, next) {
         const { title, description, status, githubUrl, liveUrl, techStack } = req.body;
 
         if (title !== undefined) {
-            if (!title.trim()) {
+            if (typeof title !== 'string' || !title.trim()) {
                 const error = new Error('Project title cannot be empty');
                 error.statusCode = 400;
                 return next(error);
@@ -207,6 +221,11 @@ async function updateProject(req, res, next) {
             project.title = title.trim();
         }
 
+        if (description !== undefined && typeof description !== 'string') {
+            const error = new Error('Description must be text');
+            error.statusCode = 400;
+            return next(error);
+        }
         if (description !== undefined) {
             project.description = description.trim();
         }
@@ -220,10 +239,20 @@ async function updateProject(req, res, next) {
             project.status = status;
         }
 
+        if (githubUrl !== undefined && typeof githubUrl !== 'string') {
+            const error = new Error('GitHub URL must be text');
+            error.statusCode = 400;
+            return next(error);
+        }
         if (githubUrl !== undefined) {
             project.githubUrl = githubUrl.trim();
         }
 
+        if (liveUrl !== undefined && typeof liveUrl !== 'string') {
+            const error = new Error('Live URL must be text');
+            error.statusCode = 400;
+            return next(error);
+        }
         if (liveUrl !== undefined) {
             project.liveUrl = liveUrl.trim();
         }
@@ -288,4 +317,57 @@ async function deleteProject(req, res, next) {
     }
 }
 
-export { createProject, getProjects, getProject, deleteProject, updateProject };
+async function importGithubProjects(req, res, next) {
+    try {
+        const selected = req.body?.repositories;
+        if (!Array.isArray(selected) || selected.length === 0 || selected.length > 100
+            || selected.some((name) => typeof name !== 'string' || !/^[a-zA-Z0-9_.-]+\/[a-zA-Z0-9_.-]+$/.test(name))) {
+            const error = new Error('Choose between 1 and 100 valid GitHub repositories');
+            error.statusCode = 400;
+            return next(error);
+        }
+
+        const repositories = await getGithubRepositories(req.user.githubUsername);
+        const selectedNames = new Set(selected.map((name) => name.toLowerCase()));
+        const selectedRepos = repositories.filter((repo) => selectedNames.has(repo.fullName.toLowerCase()));
+        const existing = await Project.find({ userId: req.user._id }).select('title githubUrl').lean();
+        const existingUrls = new Set(existing.map((project) => project.githubUrl.trim().replace(/\/$/, '').toLowerCase()).filter(Boolean));
+        const existingTitles = new Set(existing.map((project) => project.title.trim().toLowerCase()));
+        const imports = [];
+        let skipped = selected.length - selectedRepos.length;
+
+        for (const repo of selectedRepos) {
+            const repoUrl = repo.htmlUrl.replace(/\/$/, '');
+            const titleKey = repo.name.trim().toLowerCase();
+            if (existingUrls.has(repoUrl.toLowerCase()) || existingTitles.has(titleKey)) {
+                skipped += 1;
+                continue;
+            }
+            imports.push({
+                title: repo.name,
+                description: repo.description,
+                status: 'In Progress',
+                githubUrl: repoUrl,
+                liveUrl: repo.homepage,
+                techStack: repo.language ? [repo.language] : [],
+                userId: req.user._id
+            });
+            existingUrls.add(repoUrl.toLowerCase());
+            existingTitles.add(titleKey);
+        }
+
+        const imported = imports.length ? await Project.insertMany(imports) : [];
+        res.status(201).json({
+            success: true,
+            data: {
+                imported: imported.length,
+                skipped,
+                projects: imported
+            }
+        });
+    } catch (error) {
+        next(error);
+    }
+}
+
+export { createProject, getProjects, getProject, deleteProject, updateProject, importGithubProjects };

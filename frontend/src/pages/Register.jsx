@@ -1,7 +1,8 @@
 import React, { useState } from "react";
 import { User, Mail, Lock, GraduationCap, AtSign, UserPlus, Eye, EyeOff, AlertCircle, Loader2 } from "lucide-react";
-import { NavLink, useNavigate } from "react-router-dom";
+import { NavLink, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
+import { API_BASE_URL } from "@/services/api";
 
 export default function Register() {
   const [formData, setFormData] = useState({
@@ -20,6 +21,11 @@ export default function Register() {
 
   const { register } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const oauthError = new URLSearchParams(location.search).get('oauth');
+  const visibleError = error || (oauthError?.endsWith('-unconfigured')
+    ? `Sign-up provider is not configured on this server (${oauthError.split('-')[0]}). Use email sign-up or add the provider credentials to backend/.env.`
+    : oauthError ? 'Sign-up with that provider failed. Please try again or use email sign-up.' : '');
 
   const handleChange = (e) => {
     setFormData((prev) => ({
@@ -37,8 +43,8 @@ export default function Register() {
       return;
     }
 
-    if (formData.password.length < 6) {
-      setError("Password must be at least 6 characters long.");
+    if (formData.password.length < 6 || new TextEncoder().encode(formData.password).length > 72) {
+      setError("Password must be at least 6 characters and no more than 72 UTF-8 bytes.");
       return;
     }
 
@@ -84,10 +90,36 @@ export default function Register() {
           </p>
         </div>
 
-        {error && (
+        <div className="grid grid-cols-2 gap-2.5 mb-5">
+          <button
+            type="button"
+            onClick={() => window.location.assign(`${API_BASE_URL}/auth/google?mode=signup`)}
+            aria-label="Sign up with Google"
+            className="h-11 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700/60 shadow-xs hover:bg-slate-50 dark:hover:bg-slate-750 flex items-center justify-center gap-2 transition-all text-xs font-medium text-slate-700 dark:text-slate-200"
+          >
+            <img src="/google.svg" alt="" className="h-4 w-4" />
+            Google
+          </button>
+          <button
+            type="button"
+            onClick={() => window.location.assign(`${API_BASE_URL}/auth/github?mode=signup`)}
+            aria-label="Sign up with GitHub"
+            className="h-11 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700/60 shadow-xs hover:bg-slate-50 dark:hover:bg-slate-750 flex items-center justify-center gap-2 transition-all text-xs font-medium text-slate-700 dark:text-slate-200"
+          >
+            <img src="/github.svg" alt="" className="h-4 w-4" />
+            GitHub
+          </button>
+        </div>
+
+        <div className="relative mb-5 text-center">
+          <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-dashed border-slate-200 dark:border-slate-800" /></div>
+          <span className="relative bg-white/90 dark:bg-slate-900/90 px-3 text-[11px] font-medium text-slate-400 dark:text-slate-500 uppercase tracking-wider">Or create an account with email</span>
+        </div>
+
+        {visibleError && (
           <div className="mb-4 p-3 rounded-2xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/50 text-rose-600 dark:text-rose-400 text-xs flex items-center gap-2.5">
             <AlertCircle className="h-4 w-4 shrink-0" />
-            <span className="font-medium">{error}</span>
+            <span className="font-medium">{visibleError}</span>
           </div>
         )}
 
@@ -111,6 +143,9 @@ export default function Register() {
               <input
                 id="userName"
                 required
+                minLength={3}
+                maxLength={30}
+                pattern="[A-Za-z0-9_]{3,30}"
                 type="text"
                 placeholder="Username *"
                 value={formData.userName}

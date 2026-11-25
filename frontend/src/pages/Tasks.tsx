@@ -31,14 +31,8 @@ import {
   DialogTitle,
   DialogDescription,
 } from '@/components/ui/dialog';
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from '@/components/ui/tabs';
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
-import { tasks, columns, priorityConfig, type Task, type Column as ColumnType, type Priority } from '@/data/tasks';
+import { tasks, columns, priorityConfig, type Task, type Priority } from '@/data/tasks';
 import { cn } from '@/lib/utils';
 import { bgSolid } from '@/lib/colors';
 

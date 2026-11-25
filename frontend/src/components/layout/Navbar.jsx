@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from "react";
+import React, { useRef, useEffect, useState } from "react";
 import { Search, Bell, Sun, Moon, ChevronDown, LogOut, User, FolderKanban, Menu } from "lucide-react";
 import {
   DropdownMenu,
@@ -8,19 +8,25 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/context/AuthContext";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 
 export default function Navbar({ dark, toggleTheme, onOpenMobileSidebar }) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const searchInputRef = useRef(null);
+  const [search, setSearch] = useState('');
+
+  useEffect(() => {
+    setSearch(new URLSearchParams(location.search).get('search') || '');
+  }, [location.search]);
 
   // Global ⌘K / Ctrl+K shortcut listener
   useEffect(() => {
     const handleKeyDown = (e) => {
       if ((e.metaKey || e.ctrlKey) && e.key === "k") {
         e.preventDefault();
-        if (searchInputRef.current) {
+        if (searchInputRef.current && window.innerWidth >= 768) {
           searchInputRef.current.focus();
         } else {
           navigate("/projects");
@@ -31,6 +37,12 @@ export default function Navbar({ dark, toggleTheme, onOpenMobileSidebar }) {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [navigate]);
 
+  const updateSearch = (value) => {
+    setSearch(value);
+    const query = value ? `?search=${encodeURIComponent(value)}` : '';
+    navigate(`/projects${query}`, { replace: true });
+  };
+
   const getInitials = (name) => {
     if (!name) return "C";
     const parts = name.trim().split(" ");
@@ -38,7 +50,7 @@ export default function Navbar({ dark, toggleTheme, onOpenMobileSidebar }) {
     return name.slice(0, 1).toUpperCase();
   };
 
-  const firstName = user?.name ? user.name.split(" ")[0] : "Chirag";
+  const firstName = user?.name ? user.name.split(" ")[0] : "Developer";
 
   return (
     <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between px-5 sm:px-6 pt-5 pb-3 shrink-0">
@@ -73,8 +85,11 @@ export default function Navbar({ dark, toggleTheme, onOpenMobileSidebar }) {
           <input
             ref={searchInputRef}
             type="text"
-            placeholder="Search projects, tasks..."
-            onFocus={() => navigate("/projects")}
+            placeholder="Search projects..."
+            value={search}
+            onChange={(event) => updateSearch(event.target.value)}
+            onFocus={() => { if (!location.pathname.startsWith('/projects')) navigate(`/projects${location.search}`); }}
+            aria-label="Search projects"
             className="h-10 w-60 lg:w-72 rounded-2xl bg-white/80 dark:bg-slate-900/80 border border-slate-200/80 dark:border-slate-800 pl-10 pr-10 text-xs sm:text-sm text-slate-900 dark:text-white placeholder:text-slate-400 shadow-xs focus:outline-none focus:ring-2 focus:ring-purple-500/20"
           />
           <kbd className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 text-[10px] font-mono text-slate-500">
@@ -94,11 +109,11 @@ export default function Navbar({ dark, toggleTheme, onOpenMobileSidebar }) {
         {/* Notifications Bell */}
         <button
           title="Notifications"
-          onClick={() => alert("No new notifications right now. You're all caught up!")}
+          onClick={() => navigate('/tasks')}
+          aria-label="View tasks and deadlines"
           className="relative h-10 w-10 rounded-2xl bg-white/80 dark:bg-slate-900/80 border border-slate-200/80 dark:border-slate-800 flex items-center justify-center text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white shadow-xs transition-all active:scale-95"
         >
           <Bell className="h-4 w-4" />
-          <span className="absolute top-2.5 right-2.5 h-1.5 w-1.5 rounded-full bg-purple-600" />
         </button>
 
         {/* User Pill Dropdown */}

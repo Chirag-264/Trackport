@@ -1,5 +1,6 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import { loginUser as loginApi, registerUser as registerApi, getMe as getMeApi } from '../services/auth.service';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { loginUser as loginApi, registerUser as registerApi, getMe as getMeApi, logoutUser as logoutApi } from '../services/auth.service';
+import { getAccessToken, setAccessToken } from '../services/api';
 
 const AuthContext = createContext(null);
 
@@ -10,25 +11,18 @@ export const AuthProvider = ({ children }) => {
 
     useEffect(() => {
         const checkAuth = async () => {
-            const savedToken = localStorage.getItem('token');
-            if (!savedToken) {
-                setUser(null);
-                setToken(null);
-                setLoading(false);
-                return;
-            }
-
             try {
                 const res = await getMeApi();
                 if (res?.success && res?.data?.user) {
                     setUser(res.data.user);
-                    setToken(savedToken);
-                    localStorage.setItem('user', JSON.stringify(res.data.user));
+                    const currentToken = getAccessToken();
+                    setToken(currentToken);
+                    localStorage.removeItem('token');
+                    localStorage.removeItem('user');
                 } else {
                     logout();
                 }
             } catch (err) {
-                console.warn('Session verification failed or expired, prompting sign-in:', err?.message);
                 logout();
             } finally {
                 setLoading(false);
@@ -42,10 +36,11 @@ export const AuthProvider = ({ children }) => {
         const res = await loginApi(credentials);
         if (res?.success && res?.data?.token) {
             const { token: newToken, user: newUser } = res.data;
+            setAccessToken(newToken);
             setToken(newToken);
             setUser(newUser);
-            localStorage.setItem('token', newToken);
-            localStorage.setItem('user', JSON.stringify(newUser));
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
             return res.data;
         }
         throw new Error(res?.message || 'Login failed');
@@ -55,21 +50,32 @@ export const AuthProvider = ({ children }) => {
         const res = await registerApi(userData);
         if (res?.success && res?.data?.token) {
             const { token: newToken, user: newUser } = res.data;
+            setAccessToken(newToken);
             setToken(newToken);
             setUser(newUser);
-            localStorage.setItem('token', newToken);
-            localStorage.setItem('user', JSON.stringify(newUser));
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
             return res.data;
         }
         throw new Error(res?.message || 'Registration failed');
     };
 
-    const logout = () => {
+    const logout = useCallback(() => {
+        logoutApi().catch(() => {});
+        setAccessToken(null);
         setToken(null);
         setUser(null);
         localStorage.removeItem('token');
         localStorage.removeItem('user');
-    };
+    }, []);
+
+    const completeOAuth = useCallback((access, oauthUser) => {
+        setAccessToken(access);
+        setToken(access);
+        setUser(oauthUser);
+    }, []);
+
+    const updateUser = useCallback((updatedUser) => setUser(updatedUser), []);
 
     return (
         <AuthContext.Provider
@@ -80,6 +86,8 @@ export const AuthProvider = ({ children }) => {
                 isAuthenticated: !!token && !!user,
                 login,
                 register,
+                completeOAuth,
+                updateUser,
                 logout
             }}
         >

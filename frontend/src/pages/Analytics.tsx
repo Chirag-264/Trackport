@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import {
   TrendingUp,
-  TrendingDown,
   Activity,
   CheckCircle2,
   GitCommit,
@@ -54,7 +53,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { cn } from '@/lib/utils';
 
 type Range = 'weekly' | 'monthly';
 

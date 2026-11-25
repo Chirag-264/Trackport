@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import {
   FolderKanban,
   Plus,
@@ -15,7 +15,8 @@ import {
   Loader2,
   AlertCircle,
   ExternalLink,
-  Calendar
+  Calendar,
+  DownloadCloud
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -46,16 +47,19 @@ import {
   getProjects,
   createProject,
   updateProject,
-  deleteProject
+  deleteProject,
+  getGithubRepositories,
+  importGithubProjects
 } from "@/services/project.service";
 
 export default function Projects() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
   // Filters & Sorting
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(() => searchParams.get('search') || "");
   const [statusFilter, setStatusFilter] = useState("all");
   const [sortBy, setSortBy] = useState("createdAt");
   const [sortOrder, setSortOrder] = useState("desc");
@@ -90,6 +94,14 @@ export default function Projects() {
   const [deletingProject, setDeletingProject] = useState(null);
   const [submittingDelete, setSubmittingDelete] = useState(false);
 
+  const [githubImportOpen, setGithubImportOpen] = useState(false);
+  const [githubRepos, setGithubRepos] = useState([]);
+  const [githubSelected, setGithubSelected] = useState([]);
+  const [githubLoading, setGithubLoading] = useState(false);
+  const [githubImporting, setGithubImporting] = useState(false);
+  const [githubImportError, setGithubImportError] = useState("");
+  const [githubImportMessage, setGithubImportMessage] = useState("");
+
   const fetchProjects = async () => {
     try {
       setLoading(true);
@@ -118,6 +130,18 @@ export default function Projects() {
     }, 250);
     return () => clearTimeout(timer);
   }, [search, statusFilter, sortBy, sortOrder]);
+
+  useEffect(() => {
+    setSearch(searchParams.get('search') || '');
+  }, [searchParams]);
+
+  const updateSearch = (value) => {
+    setSearch(value);
+    const next = new URLSearchParams(searchParams);
+    if (value) next.set('search', value);
+    else next.delete('search');
+    setSearchParams(next, { replace: true });
+  };
 
   const handleCreateSubmit = async (e) => {
     e.preventDefault();
@@ -201,6 +225,45 @@ export default function Projects() {
     }
   };
 
+  const openGithubImport = async () => {
+    setGithubImportOpen(true);
+    setGithubImportError("");
+    setGithubImportMessage("");
+    setGithubSelected([]);
+    setGithubLoading(true);
+    try {
+      const response = await getGithubRepositories();
+      setGithubRepos(response.data.repositories || []);
+    } catch (requestError) {
+      setGithubImportError(requestError.response?.data?.message || "Could not load GitHub repositories.");
+    } finally {
+      setGithubLoading(false);
+    }
+  };
+
+  const toggleGithubRepo = (fullName) => {
+    setGithubSelected((selected) => selected.includes(fullName)
+      ? selected.filter((name) => name !== fullName)
+      : [...selected, fullName]);
+  };
+
+  const handleGithubImport = async () => {
+    if (!githubSelected.length) return;
+    setGithubImporting(true);
+    setGithubImportError("");
+    try {
+      const response = await importGithubProjects(githubSelected);
+      const { imported = 0, skipped = 0 } = response.data;
+      setGithubImportMessage(`Imported ${imported} ${imported === 1 ? "project" : "projects"}${skipped ? `; skipped ${skipped} already imported or unavailable` : ""}.`);
+      setGithubSelected([]);
+      await fetchProjects();
+    } catch (requestError) {
+      setGithubImportError(requestError.response?.data?.message || "Could not import selected repositories.");
+    } finally {
+      setGithubImporting(false);
+    }
+  };
+
   const getStatusBadge = (status) => {
     switch (status) {
       case "Completed":
@@ -240,13 +303,18 @@ export default function Projects() {
             Track your personal engineering workspaces, tech stacks, and development milestones.
           </p>
         </div>
-        <Button
-          onClick={() => setIsCreateOpen(true)}
-          className="rounded-2xl bg-purple-600 hover:bg-purple-700 text-white font-semibold text-xs h-11 px-5 gap-2 shadow-xs shrink-0"
-        >
-          <Plus className="h-4 w-4" />
-          New Project
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={openGithubImport} className="rounded-2xl font-semibold text-xs h-11 px-4 gap-2 shrink-0">
+            <Github className="h-4 w-4" />Import GitHub
+          </Button>
+          <Button
+            onClick={() => setIsCreateOpen(true)}
+            className="rounded-2xl bg-purple-600 hover:bg-purple-700 text-white font-semibold text-xs h-11 px-5 gap-2 shadow-xs shrink-0"
+          >
+            <Plus className="h-4 w-4" />
+            New Project
+          </Button>
+        </div>
       </div>
 
       {/* Toolbar: Search, Status Filter & Sorting */}
@@ -256,7 +324,7 @@ export default function Projects() {
           <Input
             placeholder="Search projects by title, stack..."
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => updateSearch(e.target.value)}
             className="pl-10 h-10 rounded-2xl bg-slate-50/80 dark:bg-slate-800/80 border-slate-200/80 dark:border-slate-700 text-xs sm:text-sm"
           />
         </div>
@@ -452,6 +520,51 @@ export default function Projects() {
       )}
 
       {/* CREATE MODAL */}
+      <Dialog open={githubImportOpen} onOpenChange={setGithubImportOpen}>
+        <DialogContent className="rounded-[32px] max-w-2xl p-6">
+          <DialogHeader>
+            <DialogTitle>Import GitHub repositories</DialogTitle>
+            <DialogDescription>Choose public repositories to add as TrackPort projects. We’ll bring in the name, description, main language, and links.</DialogDescription>
+          </DialogHeader>
+          {githubImportError && <div role="alert" className="rounded-xl bg-rose-50 dark:bg-rose-950/40 px-3 py-2 text-xs text-rose-700 dark:text-rose-300">{githubImportError}</div>}
+          {githubImportMessage && <div role="status" className="rounded-xl bg-emerald-50 dark:bg-emerald-950/40 px-3 py-2 text-xs text-emerald-700 dark:text-emerald-300">{githubImportMessage}</div>}
+          {githubLoading ? (
+            <div className="py-12 flex items-center justify-center gap-2 text-sm text-slate-500"><Loader2 className="h-4 w-4 animate-spin" />Loading repositories…</div>
+          ) : githubRepos.length === 0 ? (
+            <p className="py-8 text-center text-sm text-slate-500">No public repositories found for your GitHub username.</p>
+          ) : (
+            <>
+              <div className="flex items-center justify-between text-xs text-slate-500">
+                <span>{githubRepos.length} most recently updated public repositories</span>
+                <button type="button" className="font-semibold text-purple-600 hover:underline" onClick={() => setGithubSelected(githubSelected.length === githubRepos.length ? [] : githubRepos.map((repo) => repo.fullName))}>
+                  {githubSelected.length === githubRepos.length ? "Clear selection" : "Select all"}
+                </button>
+              </div>
+              <div className="max-h-[48vh] overflow-y-auto rounded-2xl border border-slate-200 dark:border-slate-800 divide-y divide-slate-100 dark:divide-slate-800">
+                {githubRepos.map((repo) => (
+                  <div key={repo.id} className="flex items-start gap-3 p-3.5 hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                    <input type="checkbox" aria-label={`Select ${repo.fullName}`} checked={githubSelected.includes(repo.fullName)} onChange={() => toggleGithubRepo(repo.fullName)} className="mt-1 accent-purple-600" />
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-sm font-semibold text-slate-900 dark:text-white">{repo.fullName}</span>
+                      <span className="block text-xs text-slate-500 mt-0.5 line-clamp-2">{repo.description || "No description"}</span>
+                      <span className="block text-[11px] text-slate-400 mt-1">{[repo.language, `${repo.stars} stars`, repo.fork ? "fork" : "source"].filter(Boolean).join(" · ")}</span>
+                    </span>
+                    <a href={repo.htmlUrl} target="_blank" rel="noreferrer" aria-label={`Open ${repo.fullName} on GitHub`} className="text-slate-400 hover:text-purple-600"><ExternalLink className="h-4 w-4" /></a>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setGithubImportOpen(false)} className="rounded-xl">Close</Button>
+            <Button onClick={handleGithubImport} disabled={!githubSelected.length || githubImporting} className="rounded-xl bg-purple-600 hover:bg-purple-700 text-white">
+              {githubImporting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <DownloadCloud className="h-4 w-4 mr-2" />}
+              Import {githubSelected.length} selected
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
         <DialogContent className="rounded-[32px] max-w-lg p-6">
           <DialogHeader>

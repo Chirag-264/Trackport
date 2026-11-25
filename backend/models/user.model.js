@@ -55,6 +55,14 @@ const userSchema = new mongoose.Schema({
         trim: true,
         default: ''
     },
+    leetcodeLastSyncedAt: {
+        type: Date,
+        default: null
+    },
+    leetcodeSnapshot: {
+        type: mongoose.Schema.Types.Mixed,
+        default: null
+    },
     codeforcesUsername: {
         type: String,
         trim: true,
@@ -71,7 +79,8 @@ const userSchema = new mongoose.Schema({
     dailyGoal: {
         type: Number,
         default: 2,
-        min: 1
+        min: 1,
+        max: 100
     }
 }, { timestamps: true });
 

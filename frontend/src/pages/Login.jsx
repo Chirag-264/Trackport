@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { Mail, Lock, Eye, EyeOff, LogIn, ArrowRight, AlertCircle, Loader2 } from "lucide-react";
 import { NavLink, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
+import { API_BASE_URL } from "@/services/api";
 
 export default function Login() {
   const [email, setEmail] = useState("");
@@ -15,6 +16,8 @@ export default function Login() {
   const location = useLocation();
 
   const from = location.state?.from?.pathname || "/dashboard";
+
+  const oauthError = new URLSearchParams(location.search).get('oauth');
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -60,10 +63,14 @@ export default function Login() {
           </p>
         </div>
 
-        {error && (
+        {(error || (oauthError && oauthError.endsWith('-unconfigured')
+          ? `Sign-in provider is not configured on this server (${oauthError.split('-')[0]}). Use email sign-in or add the provider credentials to backend/.env.`
+          : oauthError ? 'Sign-in with that provider failed. Please try again or use email sign-in.' : '')) && (
           <div className="mb-5 p-3 rounded-2xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/50 text-rose-600 dark:text-rose-400 text-xs flex items-center gap-2.5">
             <AlertCircle className="h-4 w-4 shrink-0" />
-            <span className="font-medium">{error}</span>
+            <span className="font-medium">{error || (oauthError && oauthError.endsWith('-unconfigured')
+              ? `Sign-in provider is not configured on this server (${oauthError.split('-')[0]}). Use email sign-in or add the provider credentials to backend/.env.`
+              : 'Sign-in with that provider failed. Please try again or use email sign-in.')}</span>
           </div>
         )}
 
@@ -108,7 +115,7 @@ export default function Login() {
           <div className="text-right">
             <button
               type="button"
-              onClick={() => alert("Please contact your administrator to reset credentials, or register a new dev account.")}
+              onClick={() => setError('Password reset is not available yet. Please contact the project administrator.')}
               className="text-xs font-medium text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 transition-colors"
             >
               Forgot password?
@@ -143,27 +150,22 @@ export default function Login() {
         </div>
 
         {/* Social Login Pills */}
-        <div className="grid grid-cols-3 gap-2.5">
+        <div className="grid grid-cols-2 gap-2.5">
           <button
             type="button"
-            onClick={() => alert("Social login is mock-supported in student mode. Use email sign in.")}
+            onClick={() => { window.location.assign(`${API_BASE_URL}/auth/google`); }}
+            aria-label="Sign in with Google"
             className="h-11 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700/60 shadow-xs hover:bg-slate-50 dark:hover:bg-slate-750 flex items-center justify-center transition-all"
           >
             <img src="/google.svg" alt="Google" className="h-4 w-4" />
           </button>
           <button
             type="button"
-            onClick={() => alert("GitHub OAuth integration will be enabled in Phase 7.")}
+            onClick={() => { window.location.assign(`${API_BASE_URL}/auth/github`); }}
+            aria-label="Sign in with GitHub"
             className="h-11 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700/60 shadow-xs hover:bg-slate-50 dark:hover:bg-slate-750 flex items-center justify-center transition-all"
           >
             <img src="/github.svg" alt="GitHub" className="h-4 w-4" />
-          </button>
-          <button
-            type="button"
-            onClick={() => alert("Codeforces / LeetCode link will sync your DSA stats!")}
-            className="h-11 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700/60 shadow-xs hover:bg-slate-50 dark:hover:bg-slate-750 flex items-center justify-center font-bold text-xs text-primary transition-all"
-          >
-            &lt;/&gt;
           </button>
         </div>
 

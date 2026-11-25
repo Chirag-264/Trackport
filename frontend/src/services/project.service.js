@@ -25,3 +25,13 @@ export async function deleteProject(id) {
     return response.data;
 }
 
+export async function getGithubRepositories() {
+    const response = await api.get('/integrations/github/repos');
+    return response.data;
+}
+
+export async function importGithubProjects(repositories) {
+    const response = await api.post('/projects/import/github', { repositories });
+    return response.data;
+}
+

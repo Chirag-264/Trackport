@@ -9,8 +9,6 @@ import {
   ChevronRight,
   Flame,
   GitBranch,
-  GitCommit,
-  GitPullRequest,
   Plus,
   Code2,
   BarChart3,
@@ -22,6 +20,9 @@ import {
 import { getDashboardData } from "@/services/dashboard.service";
 import { createProject } from "@/services/project.service";
 import { createTask } from "@/services/task.service";
+import { getProjects } from "@/services/project.service";
+import { getDsaProgress } from "@/services/dsa.service";
+import { getGitHubStats } from "@/services/dashboard.service";
 import {
   Dialog,
   DialogContent,
@@ -45,6 +46,9 @@ export default function Dashboard() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [practiceStats, setPracticeStats] = useState({ streak: 0, solvedToday: 0, dailyGoal: 2, weekCount: 0, monthCount: 0, weeklyCounts: [] });
+  const [projectChoices, setProjectChoices] = useState([]);
+  const [githubRepos, setGithubRepos] = useState([]);
 
   // Modals from Quick Actions
   const [isNewProjectOpen, setIsNewProjectOpen] = useState(false);
@@ -52,7 +56,7 @@ export default function Dashboard() {
   const [submittingProject, setSubmittingProject] = useState(false);
 
   const [isNewTaskOpen, setIsNewTaskOpen] = useState(false);
-  const [taskForm, setTaskForm] = useState({ title: "", deadline: "", projectId: "" });
+  const [taskForm, setTaskForm] = useState({ title: "", deadline: "", projectId: "none" });
   const [submittingTask, setSubmittingTask] = useState(false);
 
   const navigate = useNavigate();
@@ -61,10 +65,29 @@ export default function Dashboard() {
     try {
       setLoading(true);
       setError("");
-      const res = await getDashboardData();
+      const [res, dsaResponse, projectResponse] = await Promise.all([
+        getDashboardData(),
+        getDsaProgress().catch(() => null),
+        getProjects().catch(() => null)
+      ]);
       if (res?.success) {
         setData(res.data);
       }
+      if (dsaResponse?.success) setPracticeStats(dsaResponse.data.stats);
+      const projects = projectResponse?.data?.projects || res?.data?.recentProjects || [];
+      setProjectChoices(projects);
+      const linkedRepos = await Promise.all((projects || [])
+        .filter((project) => project.githubUrl)
+        .slice(0, 3)
+        .map(async (project) => {
+          try {
+            const response = await getGitHubStats(project.githubUrl);
+            return { ...response.data, title: project.title };
+          } catch {
+            return null;
+          }
+        }));
+      setGithubRepos(linkedRepos.filter(Boolean));
     } catch (err) {
       console.error(err);
       setError("Failed to load dashboard metrics.");
@@ -95,15 +118,19 @@ export default function Dashboard() {
 
   const handleCreateTask = async (e) => {
     e.preventDefault();
-    if (!taskForm.title.trim() || !taskForm.projectId) {
-      alert("Please enter a task title and select a project.");
+    if (!taskForm.title.trim()) {
+      alert("Please enter a task title.");
       return;
     }
     try {
       setSubmittingTask(true);
-      await createTask(taskForm);
+      await createTask({
+        title: taskForm.title.trim(),
+        deadline: taskForm.deadline || undefined,
+        ...(taskForm.projectId !== "none" ? { projectId: taskForm.projectId } : {})
+      });
       setIsNewTaskOpen(false);
-      setTaskForm({ title: "", deadline: "", projectId: "" });
+      setTaskForm({ title: "", deadline: "", projectId: "none" });
       loadData();
     } catch (err) {
       alert(err.response?.data?.message || "Failed to create task");
@@ -134,11 +161,17 @@ export default function Dashboard() {
   const strokeDashoffset = circumference - (completionRate / 100) * circumference;
 
   const completedPct = completionRate;
-  const inProgressPct = stats.totalTasks > 0 ? Math.round(((stats.totalTasks - stats.completedTasks) * 0.4) / stats.totalTasks * 100) : 0;
-  const toDoPct = Math.max(0, 100 - completedPct - inProgressPct);
+  const toDoPct = Math.max(0, 100 - completedPct);
+  const todayGoalPercent = practiceStats.dailyGoal ? Math.min(100, Math.round((practiceStats.solvedToday / practiceStats.dailyGoal) * 100)) : 0;
+  const githubTotals = githubRepos.reduce((totals, repo) => ({
+    stars: totals.stars + (repo.stargazers_count || 0),
+    forks: totals.forks + (repo.forks_count || 0),
+    issues: totals.issues + (repo.open_issues_count || 0)
+  }), { stars: 0, forks: 0, issues: 0 });
 
   return (
     <div className="space-y-5 pb-6">
+      {error && <div role="alert" className="flex items-center justify-between gap-3 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-xs text-rose-700 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-300"><span>{error}</span><button type="button" onClick={loadData} className="font-semibold underline">Retry</button></div>}
       {/* ROW 1: 4 Stat Cards matching Image 2 */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Total Projects */}
@@ -218,6 +251,18 @@ export default function Dashboard() {
         </div>
       </div>
 
+      {data?.leetcode && <section className="rounded-[26px] bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-slate-200/80 dark:border-slate-800 p-5 shadow-xs">
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+          <div><h2 className="text-sm font-bold text-slate-900 dark:text-white">LeetCode progress</h2><p className="text-xs text-slate-500 mt-1">{data.leetcode.username} · public profile via Alfa</p></div>
+          <Link to="/dsa" className="text-xs font-semibold text-purple-600 hover:text-purple-700">Open DSA tracker <ChevronRight className="inline h-3 w-3" /></Link>
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4">
+          {[['Solved', data.leetcode.stats?.totalSolved], ['Easy', data.leetcode.stats?.easySolved], ['Medium', data.leetcode.stats?.mediumSolved], ['Hard', data.leetcode.stats?.hardSolved]].map(([label, value]) => <div key={label} className="rounded-2xl bg-slate-50 dark:bg-slate-800/70 p-3"><p className="text-[10px] uppercase tracking-wide text-slate-500">{label}</p><p className="text-xl font-bold text-slate-900 dark:text-white mt-1">{Number(value || 0).toLocaleString()}</p></div>)}
+        </div>
+        {(data.leetcode.recentSolved || []).length > 0 && <div className="mt-4 border-t border-slate-100 dark:border-slate-800 pt-3"><p className="text-xs font-semibold text-slate-600 dark:text-slate-300 mb-2">Recent accepted problems</p><div className="flex flex-wrap gap-2">{data.leetcode.recentSolved.map((problem) => <a key={`${problem.titleSlug}-${problem.solvedAt}`} href={problem.problemUrl} target="_blank" rel="noreferrer" className="rounded-xl bg-slate-50 dark:bg-slate-800 px-3 py-2 text-xs text-slate-700 dark:text-slate-200 hover:text-purple-600">{problem.title}</a>)}</div></div>}
+        <p className="text-[10px] text-slate-400 mt-3">Updated {new Date(data.leetcode.fetchedAt).toLocaleString()}</p>
+      </section>}
+
       {/* ROW 2: 3 Cards matching Image 2 */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         {/* Card 1: Tasks Completion Donut Ring */}
@@ -281,18 +326,9 @@ export default function Dashboard() {
                   </span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="flex items-center gap-2 text-slate-600 dark:text-slate-300">
+                    <span className="flex items-center gap-2 text-slate-600 dark:text-slate-300">
                     <span className="h-2 w-2 rounded-full bg-indigo-500" />
-                    In Progress
-                  </span>
-                  <span className="font-semibold text-slate-800 dark:text-slate-200">
-                    {stats.inProgressProjects} ({inProgressPct}%)
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="flex items-center gap-2 text-slate-600 dark:text-slate-300">
-                    <span className="h-2 w-2 rounded-full bg-amber-400" />
-                    To Do
+                    Pending tasks
                   </span>
                   <span className="font-semibold text-slate-800 dark:text-slate-200">
                     {stats.pendingTasks} ({toDoPct}%)
@@ -375,20 +411,19 @@ export default function Dashboard() {
               <div>
                 <p className="text-[11px] text-slate-500 dark:text-slate-400">Current Streak</p>
                 <div className="flex items-baseline gap-1 mt-0.5">
-                  <span className="text-2xl font-extrabold text-slate-900 dark:text-white">12</span>
+                  <span className="text-2xl font-extrabold text-slate-900 dark:text-white">{practiceStats.streak}</span>
                   <span className="text-base">🔥</span>
                   <span className="text-xs font-semibold text-slate-500">days</span>
                 </div>
-                <p className="text-[10px] text-slate-400 mt-0.5">Best Streak: 23 days</p>
+                <p className="text-[10px] text-slate-400 mt-0.5">Based on your saved practice log</p>
               </div>
 
               {/* Weekly Calendar Dots Grid (M T W T F S S) */}
               <div className="flex items-center gap-1.5">
-                {["M", "T", "W", "T", "F", "S", "S"].map((day, idx) => (
-                  <div key={idx} className="flex flex-col items-center gap-1">
-                    <span className="text-[10px] font-bold text-slate-400">{day}</span>
-                    <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
-                    <span className={`h-2.5 w-2.5 rounded-full ${idx < 5 ? "bg-emerald-500" : "bg-slate-200 dark:bg-slate-700"}`} />
+                {(practiceStats.weeklyCounts || []).map((day) => (
+                  <div key={day.date} className="flex flex-col items-center gap-1">
+                    <span className="text-[10px] font-bold text-slate-400">{new Date(`${day.date}T00:00:00`).toLocaleDateString(undefined, { weekday: 'short' }).slice(0, 1)}</span>
+                    <span className={`h-2.5 w-2.5 rounded-full ${day.count ? "bg-emerald-500" : "bg-slate-200 dark:bg-slate-700"}`} title={`${day.count} problems solved`} />
                   </div>
                 ))}
               </div>
@@ -398,13 +433,13 @@ export default function Dashboard() {
             <div className="mt-5 pt-4 border-t border-slate-100 dark:border-slate-800">
               <div className="flex items-center justify-between text-xs font-semibold mb-1.5">
                 <span className="text-slate-600 dark:text-slate-300">Today's Goal</span>
-                <span className="text-slate-900 dark:text-white">2 / 2 problems</span>
+                <span className="text-slate-900 dark:text-white">{practiceStats.solvedToday} / {practiceStats.dailyGoal} problems</span>
               </div>
               <div className="w-full bg-slate-100 dark:bg-slate-800 h-2 rounded-full overflow-hidden">
-                <div className="bg-purple-600 h-full rounded-full w-full" />
+                <div className="bg-purple-600 h-full rounded-full transition-all" style={{ width: `${todayGoalPercent}%` }} />
               </div>
               <p className="text-[11px] font-semibold text-purple-600 dark:text-purple-400 mt-2 flex items-center gap-1">
-                Goal completed! 🎉
+                {todayGoalPercent >= 100 ? "Goal completed!" : `${Math.max(0, practiceStats.dailyGoal - practiceStats.solvedToday)} more to reach today's goal`}
               </p>
             </div>
           </div>
@@ -427,7 +462,7 @@ export default function Dashboard() {
               {/* This Week */}
               <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800">
                 <p className="text-[10px] text-slate-500 font-medium">This Week</p>
-                <p className="text-xl font-bold text-slate-900 dark:text-white mt-0.5">18</p>
+                <p className="text-xl font-bold text-slate-900 dark:text-white mt-0.5">{practiceStats.weekCount}</p>
                 <p className="text-[10px] text-purple-600 font-semibold">Problems Solved</p>
                 {/* Mini SVG Trend Line */}
                 <svg className="w-full h-7 mt-2 text-purple-500" viewBox="0 0 100 30" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -438,7 +473,7 @@ export default function Dashboard() {
               {/* This Month */}
               <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800">
                 <p className="text-[10px] text-slate-500 font-medium">This Month</p>
-                <p className="text-xl font-bold text-slate-900 dark:text-white mt-0.5">56</p>
+                <p className="text-xl font-bold text-slate-900 dark:text-white mt-0.5">{practiceStats.monthCount}</p>
                 <p className="text-[10px] text-indigo-600 font-semibold">Problems Solved</p>
                 <svg className="w-full h-7 mt-2 text-indigo-500" viewBox="0 0 100 30" fill="none" stroke="currentColor" strokeWidth="2.5">
                   <path d="M0 28 Q25 22, 50 18 T80 8 T100 3" strokeLinecap="round" />
@@ -461,7 +496,7 @@ export default function Dashboard() {
                 GitHub Overview
               </h3>
               <button
-                onClick={() => alert("GitHub account connected! Commit logs auto-syncing.")}
+                onClick={() => navigate("/projects")}
                 className="text-xs font-semibold text-purple-600 dark:text-purple-400 hover:underline"
               >
                 View Details
@@ -471,42 +506,29 @@ export default function Dashboard() {
             {/* Quick Metrics */}
             <div className="grid grid-cols-3 gap-2 mt-3 p-2.5 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 text-center">
               <div>
-                <p className="text-sm font-extrabold text-slate-900 dark:text-white">24</p>
-                <p className="text-[10px] text-slate-500">Total Repos</p>
+                <p className="text-sm font-extrabold text-slate-900 dark:text-white">{githubRepos.length}</p>
+                <p className="text-[10px] text-slate-500">Synced repos</p>
               </div>
               <div>
-                <p className="text-sm font-extrabold text-slate-900 dark:text-white">7</p>
-                <p className="text-[10px] text-slate-500">This Week</p>
+                <p className="text-sm font-extrabold text-slate-900 dark:text-white">{githubTotals.stars}</p>
+                <p className="text-[10px] text-slate-500">Stars</p>
               </div>
               <div>
-                <p className="text-sm font-extrabold text-slate-900 dark:text-white">112</p>
-                <p className="text-[10px] text-slate-500">Total Commits</p>
+                <p className="text-sm font-extrabold text-slate-900 dark:text-white">{githubTotals.forks}</p>
+                <p className="text-[10px] text-slate-500">Forks</p>
               </div>
             </div>
 
-            {/* Recent Git Activity */}
             <div className="mt-3 space-y-2">
-              <div className="flex items-center gap-2.5 text-xs">
-                <GitCommit className="h-3.5 w-3.5 text-purple-600 shrink-0" />
-                <span className="text-slate-700 dark:text-slate-300 truncate">
-                  Pushed to TrackPort <span className="text-slate-400">· 2 commits</span>
-                </span>
-                <span className="text-[10px] text-slate-400 ml-auto shrink-0">2h ago</span>
-              </div>
-              <div className="flex items-center gap-2.5 text-xs">
-                <GitBranch className="h-3.5 w-3.5 text-indigo-500 shrink-0" />
-                <span className="text-slate-700 dark:text-slate-300 truncate">
-                  Created branch <span className="font-mono text-[11px]">feature/dashboard</span>
-                </span>
-                <span className="text-[10px] text-slate-400 ml-auto shrink-0">5h ago</span>
-              </div>
-              <div className="flex items-center gap-2.5 text-xs">
-                <GitPullRequest className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
-                <span className="text-slate-700 dark:text-slate-300 truncate">
-                  Opened PR #23 TrackPort improvements
-                </span>
-                <span className="text-[10px] text-slate-400 ml-auto shrink-0">1d ago</span>
-              </div>
+              {githubRepos.length === 0 ? (
+                <p className="text-xs text-slate-500">Add a public GitHub repository URL to a project to see its current stars and forks here.</p>
+              ) : githubRepos.map((repo) => (
+                <a key={repo.html_url} href={repo.html_url} target="_blank" rel="noreferrer" className="flex items-center gap-2.5 text-xs hover:text-purple-600">
+                  <GitBranch className="h-3.5 w-3.5 text-indigo-500 shrink-0" />
+                  <span className="truncate text-slate-700 dark:text-slate-300">{repo.title} <span className="text-slate-400">? {repo.language || 'Unknown language'}</span></span>
+                  <span className="text-[10px] text-slate-400 ml-auto shrink-0">{repo.open_issues_count} open issues</span>
+                </a>
+              ))}
             </div>
           </div>
         </div>
@@ -616,7 +638,7 @@ export default function Dashboard() {
         <DialogContent className="rounded-[32px] max-w-md p-6">
           <DialogHeader>
             <DialogTitle>Add New Task</DialogTitle>
-            <DialogDescription>Assign a task and deadline to a project.</DialogDescription>
+            <DialogDescription>Optionally connect this task to one of your projects.</DialogDescription>
           </DialogHeader>
           <form onSubmit={handleCreateTask} className="space-y-4 py-2">
             <div>
@@ -631,13 +653,14 @@ export default function Dashboard() {
               />
             </div>
             <div>
-              <Label>Select Associated Project *</Label>
+              <Label>Project (optional)</Label>
               <Select value={taskForm.projectId} onValueChange={(val) => setTaskForm({ ...taskForm, projectId: val })}>
                 <SelectTrigger className="rounded-xl mt-1">
                   <SelectValue placeholder="Choose a project" />
                 </SelectTrigger>
                 <SelectContent className="rounded-2xl">
-                  {recentProjects.map((p) => (
+                  <SelectItem value="none">No project</SelectItem>
+                  {projectChoices.map((p) => (
                     <SelectItem key={p._id} value={p._id}>
                       {p.title}
                     </SelectItem>

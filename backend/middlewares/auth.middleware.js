@@ -27,7 +27,11 @@ export async function authUser(req, res, next) {
 
         let decoded;
         try {
-            decoded = jwt.verify(token, process.env.JWT_SECRET);
+            decoded = jwt.verify(token, process.env.JWT_SECRET, {
+                issuer: 'trackport-api',
+                audience: 'trackport-web'
+            });
+            if (decoded.type !== 'access') throw new Error('Token is not an access token');
         } catch (jwtErr) {
             const error = new Error('Unauthorized: Token is invalid or has expired');
             error.statusCode = 401;

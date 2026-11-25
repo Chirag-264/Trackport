@@ -1,0 +1,17 @@
+# Local credentials and machine-specific configuration
+.env
+.env.*
+!.env.example
+
+# Dependencies and generated frontend output
+node_modules/
+**/node_modules/
+frontend/dist/
+frontend/.vite/
+
+# Editor and operating-system files
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+*.tsbuildinfo

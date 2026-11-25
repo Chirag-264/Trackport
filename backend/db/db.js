@@ -16,6 +16,10 @@ async function connectDB() {
     try {
         const conn = await mongoose.connect(process.env.DB_URI);
         console.log(`MongoDB Connected: ${conn.connection.host}`);
+        await conn.connection.collection('users').updateMany(
+            { leetcodeCredentialsEncrypted: { $exists: true } },
+            { $unset: { leetcodeCredentialsEncrypted: '' } }
+        );
         return conn;
     } catch (err) {
         console.error('Failed to connect to Database:', err.message);

@@ -13,7 +13,6 @@ import {
 import { PageHeader } from '@/components/shared/PageHeader';
 import { ChartCard } from '@/components/shared/ChartCard';
 import { ProgressBar } from '@/components/shared/ProgressBar';
-import { StatusBadge } from '@/components/shared/StatusBadge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';

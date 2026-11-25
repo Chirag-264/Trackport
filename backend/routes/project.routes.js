@@ -5,7 +5,8 @@ import {
     getProjects,
     getProject,
     deleteProject,
-    updateProject
+    updateProject,
+    importGithubProjects
 } from '../controllers/project.controller.js';
 
 const projectRouter = Router();
@@ -14,6 +15,7 @@ projectRouter.use(authUser);
 
 projectRouter.get('/', getProjects);
 projectRouter.post('/', createProject);
+projectRouter.post('/import/github', importGithubProjects);
 projectRouter.get('/:id', getProject);
 projectRouter.put('/:id', updateProject);
 projectRouter.delete('/:id', deleteProject);

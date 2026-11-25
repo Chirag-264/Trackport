@@ -1,10 +1,23 @@
 import Project from "../models/project.model.js";
 import Task from "../models/tasks.model.js";
+import User from "../models/user.model.js";
+import { getLeetCodeSnapshot, LEETCODE_CACHE_TTL_MS } from "../services/leetcode.service.js";
 
 async function getDashboardData(req, res, next) {
     try {
         const userId = req.user._id;
         const now = new Date();
+        const user = await User.findById(userId).select('leetcodeUsername leetcodeSnapshot leetcodeLastSyncedAt').lean();
+        let leetcode = user?.leetcodeSnapshot || null;
+        const snapshotFresh = user?.leetcodeSnapshot && user?.leetcodeLastSyncedAt && Date.now() - new Date(user.leetcodeLastSyncedAt).getTime() < LEETCODE_CACHE_TTL_MS;
+        if (user?.leetcodeUsername && !snapshotFresh) {
+            try {
+                leetcode = await getLeetCodeSnapshot(user.leetcodeUsername);
+                await User.updateOne({ _id: userId }, { $set: { leetcodeSnapshot: leetcode, leetcodeLastSyncedAt: leetcode.fetchedAt } });
+            } catch {
+                // Keep showing the last successful snapshot when Alfa is unavailable.
+            }
+        }
 
         const [
             totalProjects,
@@ -54,7 +67,13 @@ async function getDashboardData(req, res, next) {
                     taskCompletionRate
                 },
                 recentProjects,
-                upcomingTasks
+                upcomingTasks,
+                leetcode: leetcode ? {
+                    username: leetcode.username || user?.leetcodeUsername,
+                    stats: leetcode.stats,
+                    recentSolved: (leetcode.recentSubmissions || []).slice(0, 5),
+                    fetchedAt: leetcode.fetchedAt
+                } : null
             }
         });
     } catch (err) {
